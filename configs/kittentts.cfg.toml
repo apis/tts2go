@@ -1,0 +1,27 @@
+# kittentts configuration file
+
+# Path to ONNX model file
+model_path = "models/model.onnx"
+
+# Path to voice embeddings file (NPZ format)
+voices_path = "models/voices.npz"
+
+# Output WAV file path
+output = "output.wav"
+
+# Voice to use (see available_voices below)
+voice = "af_heart"
+
+# Speech speed multiplier (1.0 = normal)
+speed = 1.0
+
+# Log level: "debug", "info", "warn", "error"
+log_level = "info"
+
+# Path to log file (empty for stderr)
+log_file = ""
+
+# Available voices:
+# af_heart, af_alloy, af_aoede, af_bella, af_jessica, af_kore, af_nicole, af_nova, af_river, af_sarah, af_sky
+# am_adam, am_echo, am_eric, am_fenrir, am_liam, am_michael, am_onyx, am_puck, am_santa
+# bf_emma, bf_isabella, bm_george, bm_lewis
