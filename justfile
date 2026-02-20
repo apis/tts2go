@@ -52,8 +52,8 @@ fmt:
     @go fmt ./...
     @echo "Format complete"
 
-# ONNX Runtime version
-ort_version := "1.20.1"
+# ONNX Runtime version (must match onnxruntime_go version)
+ort_version := "1.24.2"
 
 # HuggingFace base URL
 hf_base := "https://huggingface.co/KittenML"
