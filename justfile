@@ -154,10 +154,12 @@ fetch-onnxruntime:
 
 # Run kittentts with local ONNX Runtime
 [unix]
-run *ARGS:
-    @ONNXRUNTIME_LIB_PATH={{justfile_directory()}}/lib/libonnxruntime.so ./bin/kittentts {{ARGS}}
+run +ARGS:
+    #!/usr/bin/env bash
+    export ONNXRUNTIME_LIB_PATH={{justfile_directory()}}/lib/libonnxruntime.so
+    ./bin/kittentts {{ARGS}}
 
 # Run kittentts with local ONNX Runtime
 [windows]
-run *ARGS:
+run +ARGS:
     @$env:ONNXRUNTIME_LIB_PATH='{{justfile_directory()}}\lib\onnxruntime.dll'; ./bin/kittentts {{ARGS}}

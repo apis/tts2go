@@ -11,6 +11,8 @@ import (
 	"strings"
 )
 
+const expectedEmbeddingDim = 256
+
 type VoiceStore struct {
 	voices       map[string][]float32
 	embeddingDim int
@@ -24,7 +26,8 @@ func LoadVoices(path string) (*VoiceStore, error) {
 	defer r.Close()
 
 	store := &VoiceStore{
-		voices: make(map[string][]float32),
+		voices:       make(map[string][]float32),
+		embeddingDim: expectedEmbeddingDim,
 	}
 
 	for _, f := range r.File {
@@ -39,15 +42,20 @@ func LoadVoices(path string) (*VoiceStore, error) {
 			return nil, fmt.Errorf("failed to open %s: %w", f.Name, err)
 		}
 
-		data, err := readNpyFloat32(rc)
+		data, shape, err := readNpyFloat32WithShape(rc)
 		rc.Close()
 		if err != nil {
 			return nil, fmt.Errorf("failed to read %s: %w", f.Name, err)
 		}
 
-		store.voices[name] = data
-		if store.embeddingDim == 0 {
-			store.embeddingDim = len(data)
+		if len(shape) == 2 && shape[1] == expectedEmbeddingDim {
+			store.voices[name] = data[:expectedEmbeddingDim]
+		} else if len(data) == expectedEmbeddingDim {
+			store.voices[name] = data
+		} else if len(data) > expectedEmbeddingDim {
+			store.voices[name] = data[:expectedEmbeddingDim]
+		} else {
+			store.voices[name] = data
 		}
 	}
 
@@ -74,42 +82,42 @@ func (v *VoiceStore) EmbeddingDim() int {
 	return v.embeddingDim
 }
 
-func readNpyFloat32(r io.Reader) ([]float32, error) {
+func readNpyFloat32WithShape(r io.Reader) ([]float32, []int, error) {
 	magic := make([]byte, 6)
 	if _, err := io.ReadFull(r, magic); err != nil {
-		return nil, fmt.Errorf("failed to read magic: %w", err)
+		return nil, nil, fmt.Errorf("failed to read magic: %w", err)
 	}
 	if string(magic) != "\x93NUMPY" {
-		return nil, fmt.Errorf("invalid NPY magic number")
+		return nil, nil, fmt.Errorf("invalid NPY magic number")
 	}
 
 	version := make([]byte, 2)
 	if _, err := io.ReadFull(r, version); err != nil {
-		return nil, fmt.Errorf("failed to read version: %w", err)
+		return nil, nil, fmt.Errorf("failed to read version: %w", err)
 	}
 
 	var headerLen uint32
 	if version[0] == 1 {
 		var hl uint16
 		if err := binary.Read(r, binary.LittleEndian, &hl); err != nil {
-			return nil, fmt.Errorf("failed to read header length: %w", err)
+			return nil, nil, fmt.Errorf("failed to read header length: %w", err)
 		}
 		headerLen = uint32(hl)
 	} else {
 		if err := binary.Read(r, binary.LittleEndian, &headerLen); err != nil {
-			return nil, fmt.Errorf("failed to read header length: %w", err)
+			return nil, nil, fmt.Errorf("failed to read header length: %w", err)
 		}
 	}
 
 	header := make([]byte, headerLen)
 	if _, err := io.ReadFull(r, header); err != nil {
-		return nil, fmt.Errorf("failed to read header: %w", err)
+		return nil, nil, fmt.Errorf("failed to read header: %w", err)
 	}
 
 	headerStr := string(header)
 	shape, err := parseShape(headerStr)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	totalElements := 1
@@ -123,22 +131,22 @@ func readNpyFloat32(r io.Reader) ([]float32, error) {
 	if isFloat16 {
 		data := make([]uint16, totalElements)
 		if err := binary.Read(r, binary.LittleEndian, data); err != nil {
-			return nil, fmt.Errorf("failed to read float16 data: %w", err)
+			return nil, nil, fmt.Errorf("failed to read float16 data: %w", err)
 		}
 		result := make([]float32, totalElements)
 		for i, v := range data {
 			result[i] = float16ToFloat32(v)
 		}
-		return result, nil
+		return result, shape, nil
 	} else if isFloat32 {
 		result := make([]float32, totalElements)
 		if err := binary.Read(r, binary.LittleEndian, result); err != nil {
-			return nil, fmt.Errorf("failed to read float32 data: %w", err)
+			return nil, nil, fmt.Errorf("failed to read float32 data: %w", err)
 		}
-		return result, nil
+		return result, shape, nil
 	}
 
-	return nil, fmt.Errorf("unsupported dtype in header: %s", headerStr)
+	return nil, nil, fmt.Errorf("unsupported dtype in header: %s", headerStr)
 }
 
 func parseShape(header string) ([]int, error) {
@@ -238,15 +246,20 @@ func LoadVoicesFromDir(dir string) (*VoiceStore, error) {
 			return nil, fmt.Errorf("failed to open %s: %w", path, err)
 		}
 
-		data, err := readNpyFloat32(f)
+		data, shape, err := readNpyFloat32WithShape(f)
 		f.Close()
 		if err != nil {
 			return nil, fmt.Errorf("failed to read %s: %w", path, err)
 		}
 
-		store.voices[name] = data
-		if store.embeddingDim == 0 {
-			store.embeddingDim = len(data)
+		if len(shape) == 2 && shape[1] == expectedEmbeddingDim {
+			store.voices[name] = data[:expectedEmbeddingDim]
+		} else if len(data) == expectedEmbeddingDim {
+			store.voices[name] = data
+		} else if len(data) > expectedEmbeddingDim {
+			store.voices[name] = data[:expectedEmbeddingDim]
+		} else {
+			store.voices[name] = data
 		}
 	}
 

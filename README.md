@@ -63,13 +63,15 @@ go build -o bin/kittentts ./cmd/kittentts
 
 ```bash
 # Using just run (automatically sets ONNXRUNTIME_LIB_PATH)
-just run -t "Hello, world!" -o output.wav
+# Note: Use nested quotes for text with spaces
+just run -t '"Hello, world!"' -o output.wav
 
 # Or run directly (requires ONNXRUNTIME_LIB_PATH or system-installed library)
+export ONNXRUNTIME_LIB_PATH=/path/to/lib/libonnxruntime.so
 ./bin/kittentts -t "Hello, world!" -o output.wav
 
 # With voice selection
-./bin/kittentts -t "Hello, world!" -v af_heart -o output.wav
+./bin/kittentts -t "Hello, world!" -v expr-voice-3-f -o output.wav
 
 # With speed adjustment
 ./bin/kittentts -t "Hello, world!" -s 1.2 -o output.wav
@@ -86,10 +88,8 @@ just run -t "Hello, world!" -o output.wav
 
 ### Available Voices
 
-- Female: `af_heart`, `af_alloy`, `af_aoede`, `af_bella`, `af_jessica`, `af_kore`, `af_nicole`, `af_nova`, `af_river`, `af_sarah`, `af_sky`
-- Male: `am_adam`, `am_echo`, `am_eric`, `am_fenrir`, `am_liam`, `am_michael`, `am_onyx`, `am_puck`, `am_santa`
-- British Female: `bf_emma`, `bf_isabella`
-- British Male: `bm_george`, `bm_lewis`
+- Female: `expr-voice-2-f`, `expr-voice-3-f`, `expr-voice-4-f`, `expr-voice-5-f`
+- Male: `expr-voice-2-m`, `expr-voice-3-m`, `expr-voice-4-m`, `expr-voice-5-m`
 
 ### Configuration
 

@@ -90,7 +90,7 @@ func NewKittenTTS(modelPath, voicesPath string) (*KittenTTS, error) {
 	}
 
 	inputNames := []string{"input_ids", "style", "speed"}
-	outputNames := []string{"audio"}
+	outputNames := []string{"waveform"}
 
 	session, err := ort.NewDynamicAdvancedSession(
 		modelPath,

@@ -25,7 +25,7 @@ func LoadAndParse() (*Config, error) {
 	viper.SetDefault("model_path", "models/model.onnx")
 	viper.SetDefault("voices_path", "models/voices.npz")
 	viper.SetDefault("output", "output.wav")
-	viper.SetDefault("voice", "af_heart")
+	viper.SetDefault("voice", "expr-voice-2-f")
 	viper.SetDefault("speed", 1.0)
 	viper.SetDefault("log_level", "info")
 	viper.SetDefault("log_file", "")
