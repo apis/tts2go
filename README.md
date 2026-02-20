@@ -38,12 +38,18 @@ sudo ldconfig
 
 ### 2. Download Model Files
 
-Download from https://huggingface.co/KittenML/kitten-tts-nano-0.2
-
 ```bash
-mkdir -p models
-# Download model.onnx, voices.npz, and config.json to models/
+# Download default model (nano-fp32, 57MB)
+just fetch-models
+
+# Or choose a specific variant:
+just fetch-models nano-int8   # Quantized, smallest (18MB)
+just fetch-models nano-fp32   # Full precision (57MB)
+just fetch-models micro       # Medium model (41MB)
+just fetch-models mini        # Best quality (78MB)
 ```
+
+Models are downloaded from https://huggingface.co/KittenML
 
 ### 3. Build
 

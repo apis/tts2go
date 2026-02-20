@@ -55,25 +55,73 @@ fmt:
 # ONNX Runtime version
 ort_version := "1.20.1"
 
-# Model URL (HuggingFace)
-hf_repo := "KittenML/kitten-tts-nano-0.2"
+# HuggingFace base URL
+hf_base := "https://huggingface.co/KittenML"
 
 # Fetch model files from HuggingFace
+# Usage: just fetch-models [variant]
+# Available variants:
+#   nano-int8  - kitten-tts-nano-0.8-int8 (18 MB model, quantized, fastest)
+#   nano-fp32  - kitten-tts-nano-0.8-fp32 (57 MB model, default)
+#   micro      - kitten-tts-micro-0.8 (41 MB model)
+#   mini       - kitten-tts-mini-0.8 (78 MB model, best quality)
 [unix]
-fetch-models:
-    @echo "Fetching model files..."
-    @mkdir -p models
-    @echo "Download model.onnx, voices.npz, config.json from:"
-    @echo "https://huggingface.co/{{hf_repo}}/tree/main"
-    @echo "Place them in the models/ directory"
+fetch-models variant="nano-fp32":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p models
+    case "{{variant}}" in
+        nano-fp32)
+            REPO="kitten-tts-nano-0.8-fp32"
+            ONNX="kitten_tts_nano_v0_8.onnx"
+            ;;
+        nano-int8)
+            REPO="kitten-tts-nano-0.8-int8"
+            ONNX="kitten_tts_nano_v0_8.onnx"
+            ;;
+        micro)
+            REPO="kitten-tts-micro-0.8"
+            ONNX="kitten_tts_micro_v0_8.onnx"
+            ;;
+        mini)
+            REPO="kitten-tts-mini-0.8"
+            ONNX="kitten_tts_mini_v0_8.onnx"
+            ;;
+        *)
+            echo "Unknown variant: {{variant}}"
+            echo "Available: nano-int8, nano-fp32, micro, mini"
+            exit 1
+            ;;
+    esac
+    echo "Fetching $REPO model files..."
+    echo "Downloading $ONNX -> models/model.onnx..."
+    curl -L -o models/model.onnx "{{hf_base}}/$REPO/resolve/main/$ONNX"
+    echo "Downloading voices.npz..."
+    curl -L -o models/voices.npz "{{hf_base}}/$REPO/resolve/main/voices.npz"
+    echo "Downloading config.json..."
+    curl -L -o models/config.json "{{hf_base}}/$REPO/resolve/main/config.json"
+    echo "Model files downloaded to models/"
+    ls -lh models/
 
 [windows]
-fetch-models:
+fetch-models variant="nano-fp32":
     @echo "Fetching model files..."
     @New-Item -ItemType Directory -Force -Path models | Out-Null
-    @echo "Download model.onnx, voices.npz, config.json from:"
-    @echo "https://huggingface.co/{{hf_repo}}/tree/main"
-    @echo "Place them in the models/ directory"
+    @$repo = switch ("{{variant}}") { \
+        "nano-fp32" { @{repo="kitten-tts-nano-0.8-fp32"; onnx="kitten_tts_nano_v0_8.onnx"} } \
+        "nano-int8" { @{repo="kitten-tts-nano-0.8-int8"; onnx="kitten_tts_nano_v0_8.onnx"} } \
+        "micro" { @{repo="kitten-tts-micro-0.8"; onnx="kitten_tts_micro_v0_8.onnx"} } \
+        "mini" { @{repo="kitten-tts-mini-0.8"; onnx="kitten_tts_mini_v0_8.onnx"} } \
+        default { Write-Error "Unknown variant: {{variant}}"; exit 1 } \
+    }; \
+    Write-Host "Downloading $($repo.onnx) -> models/model.onnx..."; \
+    Invoke-WebRequest -Uri "{{hf_base}}/$($repo.repo)/resolve/main/$($repo.onnx)" -OutFile models\model.onnx; \
+    Write-Host "Downloading voices.npz..."; \
+    Invoke-WebRequest -Uri "{{hf_base}}/$($repo.repo)/resolve/main/voices.npz" -OutFile models\voices.npz; \
+    Write-Host "Downloading config.json..."; \
+    Invoke-WebRequest -Uri "{{hf_base}}/$($repo.repo)/resolve/main/config.json" -OutFile models\config.json; \
+    Write-Host "Model files downloaded to models/"; \
+    Get-ChildItem models\
 
 # Full rebuild
 rebuild: clean build
