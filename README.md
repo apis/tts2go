@@ -19,19 +19,21 @@ A Go implementation of KittenTTS text-to-speech synthesis using ONNX Runtime.
 
 ### 1. Install ONNX Runtime
 
-Download from https://github.com/microsoft/onnxruntime/releases
+Use the justfile recipe to download ONNX Runtime locally:
 
 ```bash
-# Linux example
-wget https://github.com/microsoft/onnxruntime/releases/download/v1.19.0/onnxruntime-linux-x64-1.19.0.tgz
-tar xzf onnxruntime-linux-x64-1.19.0.tgz
-sudo cp onnxruntime-linux-x64-1.19.0/lib/libonnxruntime.so /usr/local/lib/
-sudo ldconfig
+just fetch-onnxruntime
 ```
 
-Or set the path via environment variable:
+This downloads the library to `lib/` and prints the export command for `ONNXRUNTIME_LIB_PATH`.
+
+Or install system-wide:
 ```bash
-export ONNXRUNTIME_LIB_PATH=/path/to/libonnxruntime.so
+# Linux example
+wget https://github.com/microsoft/onnxruntime/releases/download/v1.20.1/onnxruntime-linux-x64-1.20.1.tgz
+tar xzf onnxruntime-linux-x64-1.20.1.tgz
+sudo cp onnxruntime-linux-x64-1.20.1/lib/libonnxruntime.so /usr/local/lib/
+sudo ldconfig
 ```
 
 ### 2. Download Model Files
@@ -54,7 +56,10 @@ go build -o bin/kittentts ./cmd/kittentts
 ## Usage
 
 ```bash
-# Basic usage
+# Using just run (automatically sets ONNXRUNTIME_LIB_PATH)
+just run -t "Hello, world!" -o output.wav
+
+# Or run directly (requires ONNXRUNTIME_LIB_PATH or system-installed library)
 ./bin/kittentts -t "Hello, world!" -o output.wav
 
 # With voice selection

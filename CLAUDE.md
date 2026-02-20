@@ -16,4 +16,6 @@
 - `just deps` - Download and verify Go dependencies
 - `just fmt` - Format Go code
 - `just fetch-models` - Download model files from HuggingFace
+- `just fetch-onnxruntime` - Download ONNX Runtime library to `lib/`
 - `just rebuild` - Full rebuild: clean and build
+- `just run` - Run kittentts with local ONNX Runtime (auto-sets ONNXRUNTIME_LIB_PATH)
