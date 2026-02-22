@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -41,6 +42,16 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to load model")
 	}
 	defer tts.Close()
+
+	if cfg.ListVoices {
+		voices := tts.ListVoices()
+		sort.Strings(voices)
+		fmt.Fprintf(os.Stderr, "Available voices (%d):\n", len(voices))
+		for _, v := range voices {
+			fmt.Fprintf(os.Stderr, "  %s\n", v)
+		}
+		return
+	}
 
 	log.Debug().Strs("voices", tts.ListVoices()).Msg("Available voices")
 

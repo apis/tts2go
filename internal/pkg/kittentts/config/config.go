@@ -20,6 +20,7 @@ type Config struct {
 	Speed      float32 `mapstructure:"speed"`
 	LogLevel   string  `mapstructure:"log_level"`
 	LogFile    string  `mapstructure:"log_file"`
+	ListVoices bool    `mapstructure:"list_voices"`
 }
 
 func LoadAndParse() (*Config, error) {
@@ -39,9 +40,10 @@ func LoadAndParse() (*Config, error) {
 	flagSet.StringP("voice", "v", "", "Voice to use")
 	flagSet.Float32P("speed", "s", 1.0, "Speech speed (0.5-2.0)")
 	flagSet.StringP("model", "m", "", "Path to ONNX model file")
-	flagSet.String("voices", "", "Path to voices NPZ file")
+	flagSet.String("voices", "", "Path to voices (NPZ file or directory with .npy/.bin files)")
 	flagSet.StringP("log-level", "l", "", "Log level (debug, info, warn, error)")
 	flagSet.String("log-file", "", "Log file path")
+	flagSet.Bool("list-voices", false, "List available voices and exit")
 	helpFlag := flagSet.BoolP("help", "h", false, "Show help message")
 
 	if err := flagSet.Parse(os.Args[1:]); err != nil {
@@ -76,6 +78,9 @@ func LoadAndParse() (*Config, error) {
 		return nil, err
 	}
 	if err := viper.BindPFlag("log_file", flagSet.Lookup("log-file")); err != nil {
+		return nil, err
+	}
+	if err := viper.BindPFlag("list_voices", flagSet.Lookup("list-voices")); err != nil {
 		return nil, err
 	}
 
@@ -126,7 +131,7 @@ func LoadAndParse() (*Config, error) {
 		}
 	}
 
-	if cfg.Text == "" {
+	if cfg.Text == "" && !cfg.ListVoices {
 		return nil, fmt.Errorf("text is required (use -t, -f, or provide as argument)")
 	}
 

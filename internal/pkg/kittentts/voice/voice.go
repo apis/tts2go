@@ -225,7 +225,8 @@ func float16ToFloat32(h uint16) float32 {
 
 func LoadVoicesFromDir(dir string) (*VoiceStore, error) {
 	store := &VoiceStore{
-		voices: make(map[string][]float32),
+		voices:       make(map[string][]float32),
+		embeddingDim: expectedEmbeddingDim,
 	}
 
 	entries, err := os.ReadDir(dir)
@@ -234,34 +235,71 @@ func LoadVoicesFromDir(dir string) (*VoiceStore, error) {
 	}
 
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".npy") {
+		if entry.IsDir() {
 			continue
 		}
 
-		name := strings.TrimSuffix(entry.Name(), ".npy")
-		path := filepath.Join(dir, entry.Name())
+		name := entry.Name()
+		path := filepath.Join(dir, name)
 
-		f, err := os.Open(path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to open %s: %w", path, err)
-		}
-
-		data, shape, err := readNpyFloat32WithShape(f)
-		f.Close()
-		if err != nil {
-			return nil, fmt.Errorf("failed to read %s: %w", path, err)
-		}
-
-		if len(shape) == 2 && shape[1] == expectedEmbeddingDim {
-			store.voices[name] = data[:expectedEmbeddingDim]
-		} else if len(data) == expectedEmbeddingDim {
-			store.voices[name] = data
-		} else if len(data) > expectedEmbeddingDim {
-			store.voices[name] = data[:expectedEmbeddingDim]
-		} else {
-			store.voices[name] = data
+		if strings.HasSuffix(name, ".npy") {
+			voiceName := strings.TrimSuffix(name, ".npy")
+			data, err := loadNpyVoice(path)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load %s: %w", path, err)
+			}
+			store.voices[voiceName] = data
+		} else if strings.HasSuffix(name, ".bin") {
+			voiceName := strings.TrimSuffix(name, ".bin")
+			data, err := loadBinVoice(path)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load %s: %w", path, err)
+			}
+			store.voices[voiceName] = data
 		}
 	}
 
 	return store, nil
+}
+
+func loadNpyVoice(path string) ([]float32, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	data, shape, err := readNpyFloat32WithShape(f)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(shape) == 2 && shape[1] == expectedEmbeddingDim {
+		return data[:expectedEmbeddingDim], nil
+	} else if len(data) == expectedEmbeddingDim {
+		return data, nil
+	} else if len(data) > expectedEmbeddingDim {
+		return data[:expectedEmbeddingDim], nil
+	}
+	return data, nil
+}
+
+func loadBinVoice(path string) ([]float32, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(data) < expectedEmbeddingDim*4 {
+		return nil, fmt.Errorf("voice file too small: %d bytes", len(data))
+	}
+
+	numFloats := len(data) / 4
+	floats := make([]float32, numFloats)
+	for i := 0; i < numFloats; i++ {
+		bits := binary.LittleEndian.Uint32(data[i*4 : (i+1)*4])
+		floats[i] = math.Float32frombits(bits)
+	}
+
+	return floats[:expectedEmbeddingDim], nil
 }
