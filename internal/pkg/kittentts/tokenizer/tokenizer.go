@@ -19,7 +19,6 @@ var symbols = []rune{
 type Tokenizer struct {
 	symbolToIndex map[rune]int64
 	padIndex      int64
-	endIndex      int64
 }
 
 func NewTokenizer() *Tokenizer {
@@ -31,12 +30,13 @@ func NewTokenizer() *Tokenizer {
 	return &Tokenizer{
 		symbolToIndex: symbolToIndex,
 		padIndex:      0,
-		endIndex:      int64(len(symbols)),
 	}
 }
 
 func (t *Tokenizer) Encode(text string) []int64 {
-	tokens := make([]int64, 0, len(text)+2)
+	tokens := make([]int64, 0, len(text)+1)
+
+	tokens = append(tokens, t.padIndex)
 
 	for _, r := range text {
 		if idx, ok := t.symbolToIndex[r]; ok {
