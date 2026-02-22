@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -32,7 +33,8 @@ func LoadAndParse() (*Config, error) {
 
 	flagSet := pflag.NewFlagSet("kittentts", pflag.ContinueOnError)
 	configFile := flagSet.StringP("config", "c", "", "Path to config file")
-	flagSet.StringP("text", "t", "", "Text to synthesize")
+	flagSet.StringP("text", "t", "", "Text to synthesize (use '-' to read from stdin)")
+	flagSet.StringP("file", "f", "", "Read text from file")
 	flagSet.StringP("output", "o", "", "Output WAV file")
 	flagSet.StringP("voice", "v", "", "Voice to use")
 	flagSet.Float32P("speed", "s", 1.0, "Speech speed (0.5-2.0)")
@@ -104,7 +106,20 @@ func LoadAndParse() (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
-	if cfg.Text == "" {
+	textFile, _ := flagSet.GetString("file")
+	if textFile != "" {
+		content, err := os.ReadFile(textFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read text file: %w", err)
+		}
+		cfg.Text = strings.TrimSpace(string(content))
+	} else if cfg.Text == "-" {
+		content, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read from stdin: %w", err)
+		}
+		cfg.Text = strings.TrimSpace(string(content))
+	} else if cfg.Text == "" {
 		args := flagSet.Args()
 		if len(args) > 0 {
 			cfg.Text = strings.Join(args, " ")
@@ -112,7 +127,7 @@ func LoadAndParse() (*Config, error) {
 	}
 
 	if cfg.Text == "" {
-		return nil, fmt.Errorf("text is required (use -t flag or provide as argument)")
+		return nil, fmt.Errorf("text is required (use -t, -f, or provide as argument)")
 	}
 
 	if cfg.Speed < 0.5 || cfg.Speed > 2.0 {
