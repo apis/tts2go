@@ -28,7 +28,9 @@ func (ph *Phonemizer) Phonemize(text string) string {
 		if i > 0 {
 			result.WriteString(" ")
 		}
+		result.WriteString(word.PrePunct)
 		result.WriteString(word.Phonetic)
+		result.WriteString(word.PostPunct)
 	}
 
 	return result.String()
