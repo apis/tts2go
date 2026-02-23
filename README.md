@@ -1,4 +1,8 @@
-# TTS2Go
+# tts2go
+
+<p align="center">
+  <img src="logo.png" alt="tts2go Logo" width="200">
+</p>
 
 A Go implementation of text-to-speech synthesis using ONNX Runtime, supporting Kokoro and Kitten TTS models.
 
