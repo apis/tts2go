@@ -25,6 +25,86 @@ func NewAudio(samples []float32) *Audio {
 	}
 }
 
+func NewAudioWithSampleRate(samples []float32, sampleRate int) *Audio {
+	return &Audio{
+		Samples:    samples,
+		SampleRate: sampleRate,
+	}
+}
+
+func LoadWAV(path string) (*Audio, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file: %w", err)
+	}
+	defer f.Close()
+
+	header := make([]byte, 44)
+	if _, err := f.Read(header); err != nil {
+		return nil, fmt.Errorf("failed to read header: %w", err)
+	}
+
+	if string(header[0:4]) != "RIFF" || string(header[8:12]) != "WAVE" {
+		return nil, fmt.Errorf("invalid WAV file format")
+	}
+
+	numChannels := int(binary.LittleEndian.Uint16(header[22:24]))
+	sampleRate := int(binary.LittleEndian.Uint32(header[24:28]))
+	bitsPerSample := int(binary.LittleEndian.Uint16(header[34:36]))
+
+	var dataSize uint32
+	pos := 36
+	for {
+		chunkHeader := make([]byte, 8)
+		if _, err := f.Read(chunkHeader); err != nil {
+			return nil, fmt.Errorf("failed to find data chunk: %w", err)
+		}
+		chunkID := string(chunkHeader[0:4])
+		chunkSize := binary.LittleEndian.Uint32(chunkHeader[4:8])
+
+		if chunkID == "data" {
+			dataSize = chunkSize
+			break
+		}
+
+		if _, err := f.Seek(int64(chunkSize), 1); err != nil {
+			return nil, fmt.Errorf("failed to skip chunk: %w", err)
+		}
+		pos += 8 + int(chunkSize)
+	}
+
+	data := make([]byte, dataSize)
+	if _, err := f.Read(data); err != nil {
+		return nil, fmt.Errorf("failed to read audio data: %w", err)
+	}
+
+	var samples []float32
+
+	switch bitsPerSample {
+	case 16:
+		numSamples := len(data) / 2
+		samples = make([]float32, numSamples/numChannels)
+		for i := 0; i < numSamples; i += numChannels {
+			sample := int16(binary.LittleEndian.Uint16(data[i*2 : (i+1)*2]))
+			samples[i/numChannels] = float32(sample) / 32768.0
+		}
+	case 32:
+		numSamples := len(data) / 4
+		samples = make([]float32, numSamples/numChannels)
+		for i := 0; i < numSamples; i += numChannels {
+			bits := binary.LittleEndian.Uint32(data[i*4 : (i+1)*4])
+			samples[i/numChannels] = math.Float32frombits(bits)
+		}
+	default:
+		return nil, fmt.Errorf("unsupported bits per sample: %d", bitsPerSample)
+	}
+
+	return &Audio{
+		Samples:    samples,
+		SampleRate: sampleRate,
+	}, nil
+}
+
 func (a *Audio) SaveWAV(path string) error {
 	f, err := os.Create(path)
 	if err != nil {
