@@ -8,14 +8,14 @@ import (
 
 	ort "github.com/yalue/onnxruntime_go"
 
-	"kittentts/internal/pkg/kittentts/audio"
-	"kittentts/internal/pkg/kittentts/phonemizer"
-	"kittentts/internal/pkg/kittentts/preprocess"
-	"kittentts/internal/pkg/kittentts/tokenizer"
-	"kittentts/internal/pkg/kittentts/voice"
+	"tts2go/internal/pkg/tts2go/audio"
+	"tts2go/internal/pkg/tts2go/phonemizer"
+	"tts2go/internal/pkg/tts2go/preprocess"
+	"tts2go/internal/pkg/tts2go/tokenizer"
+	"tts2go/internal/pkg/tts2go/voice"
 )
 
-type KittenTTS struct {
+type TTS struct {
 	session      *ort.DynamicAdvancedSession
 	voices       *voice.VoiceStore
 	preprocessor *preprocess.Preprocessor
@@ -72,7 +72,7 @@ func getOnnxRuntimeLibPath() string {
 	}
 }
 
-func NewKittenTTS(modelPath, voicesPath string) (*KittenTTS, error) {
+func NewTTS(modelPath, voicesPath string) (*TTS, error) {
 	libPath := getOnnxRuntimeLibPath()
 	ort.SetSharedLibraryPath(libPath)
 
@@ -102,7 +102,7 @@ func NewKittenTTS(modelPath, voicesPath string) (*KittenTTS, error) {
 		return nil, fmt.Errorf("failed to create ONNX session: %w", err)
 	}
 
-	return &KittenTTS{
+	return &TTS{
 		session:      session,
 		voices:       voices,
 		preprocessor: preprocess.NewPreprocessor(),
@@ -111,17 +111,17 @@ func NewKittenTTS(modelPath, voicesPath string) (*KittenTTS, error) {
 	}, nil
 }
 
-func (k *KittenTTS) Generate(text, voiceName string, speed float32) (*audio.Audio, error) {
-	processedText := k.preprocessor.Process(text)
+func (t *TTS) Generate(text, voiceName string, speed float32) (*audio.Audio, error) {
+	processedText := t.preprocessor.Process(text)
 
-	phonemes := k.phonemizer.Phonemize(processedText)
+	phonemes := t.phonemizer.Phonemize(processedText)
 
-	tokens := k.tokenizer.Encode(phonemes)
+	tokens := t.tokenizer.Encode(phonemes)
 	if len(tokens) == 0 {
 		return nil, fmt.Errorf("failed to tokenize text")
 	}
 
-	voiceEmbedding, err := k.voices.Get(voiceName)
+	voiceEmbedding, err := t.voices.Get(voiceName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get voice embedding: %w", err)
 	}
@@ -148,7 +148,7 @@ func (k *KittenTTS) Generate(text, voiceName string, speed float32) (*audio.Audi
 	inputs := []ort.Value{inputIdsTensor, styleTensor, speedTensor}
 	outputs := make([]ort.Value, 1)
 
-	if err := k.session.Run(inputs, outputs); err != nil {
+	if err := t.session.Run(inputs, outputs); err != nil {
 		return nil, fmt.Errorf("failed to run inference: %w", err)
 	}
 
@@ -167,13 +167,13 @@ func (k *KittenTTS) Generate(text, voiceName string, speed float32) (*audio.Audi
 	return audio.NewAudio(outputData), nil
 }
 
-func (k *KittenTTS) ListVoices() []string {
-	return k.voices.List()
+func (t *TTS) ListVoices() []string {
+	return t.voices.List()
 }
 
-func (k *KittenTTS) Close() error {
-	if k.session != nil {
-		if err := k.session.Destroy(); err != nil {
+func (t *TTS) Close() error {
+	if t.session != nil {
+		if err := t.session.Destroy(); err != nil {
 			return err
 		}
 	}

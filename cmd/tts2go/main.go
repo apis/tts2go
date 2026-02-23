@@ -10,12 +10,12 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	"kittentts/internal/pkg/kittentts/config"
-	"kittentts/internal/pkg/kittentts/model"
+	"tts2go/internal/pkg/tts2go/config"
+	"tts2go/internal/pkg/tts2go/model"
 )
 
 func main() {
-	fmt.Fprintf(os.Stderr, "kittentts %s\n", Version)
+	fmt.Fprintf(os.Stderr, "tts2go %s\n", Version)
 
 	zerolog.TimeFieldFormat = time.RFC3339
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
@@ -37,7 +37,7 @@ func main() {
 		Msg("Configuration loaded")
 
 	log.Info().Msg("Loading TTS model...")
-	tts, err := model.NewKittenTTS(cfg.ModelPath, cfg.VoicesPath)
+	tts, err := model.NewTTS(cfg.ModelPath, cfg.VoicesPath)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to load model")
 	}

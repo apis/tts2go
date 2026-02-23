@@ -10,7 +10,7 @@
 
 ## Build Commands (justfile)
 
-- `just build` - Build the kittentts binary to `bin/kittentts`
+- `just build` - Build the tts2go binary to `bin/tts2go`
 - `just clean` - Remove build artifacts
 - `just test` - Run tests
 - `just deps` - Download and verify Go dependencies
@@ -18,4 +18,4 @@
 - `just fetch-models` - Download model files from HuggingFace
 - `just fetch-onnxruntime` - Download ONNX Runtime library to `lib/`
 - `just rebuild` - Full rebuild: clean and build
-- `just run` - Run kittentts with local ONNX Runtime (auto-sets ONNXRUNTIME_LIB_PATH)
+- `just run` - Run tts2go with local ONNX Runtime (auto-sets ONNXRUNTIME_LIB_PATH)

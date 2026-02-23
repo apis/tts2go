@@ -6,17 +6,17 @@ exe_suffix := if os() == "windows" { ".exe" } else { "" }
 
 default: build
 
-# Build the kittentts binary
+# Build the tts2go binary
 build:
-    @echo "Building kittentts..."
-    @go build -o bin/kittentts{{exe_suffix}} ./cmd/kittentts
-    @echo "Build complete: bin/kittentts{{exe_suffix}}"
+    @echo "Building tts2go..."
+    @go build -o bin/tts2go{{exe_suffix}} ./cmd/tts2go
+    @echo "Build complete: bin/tts2go{{exe_suffix}}"
 
 # Build production binary (stripped, no debug info)
 release: clean
-    @echo "Building production kittentts..."
-    @go build -trimpath -ldflags="-s -w" -o bin/kittentts{{exe_suffix}} ./cmd/kittentts
-    @echo "Production build complete: bin/kittentts{{exe_suffix}}"
+    @echo "Building production tts2go..."
+    @go build -trimpath -ldflags="-s -w" -o bin/tts2go{{exe_suffix}} ./cmd/tts2go
+    @echo "Production build complete: bin/tts2go{{exe_suffix}}"
 
 # Clean build artifacts
 [unix]
@@ -219,14 +219,14 @@ fetch-onnxruntime:
     @echo "ONNX Runtime installed to lib/"
     @echo "Set: $env:ONNXRUNTIME_LIB_PATH='{{justfile_directory()}}\lib\onnxruntime.dll'"
 
-# Run kittentts with local ONNX Runtime
+# Run tts2go with local ONNX Runtime
 [unix]
 run +ARGS:
     #!/usr/bin/env bash
     export ONNXRUNTIME_LIB_PATH={{justfile_directory()}}/lib/libonnxruntime.so
-    ./bin/kittentts {{ARGS}}
+    ./bin/tts2go {{ARGS}}
 
-# Run kittentts with local ONNX Runtime
+# Run tts2go with local ONNX Runtime
 [windows]
 run +ARGS:
-    @$env:ONNXRUNTIME_LIB_PATH='{{justfile_directory()}}\lib\onnxruntime.dll'; ./bin/kittentts {{ARGS}}
+    @$env:ONNXRUNTIME_LIB_PATH='{{justfile_directory()}}\lib\onnxruntime.dll'; ./bin/tts2go {{ARGS}}

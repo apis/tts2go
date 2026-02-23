@@ -1,6 +1,6 @@
-# KittenTTS Go
+# TTS2Go
 
-A Go implementation of KittenTTS text-to-speech synthesis using ONNX Runtime.
+A Go implementation of text-to-speech synthesis using ONNX Runtime, supporting Kokoro and Kitten TTS models.
 
 ## Features
 
@@ -56,7 +56,7 @@ Models are downloaded from https://huggingface.co/KittenML
 ```bash
 just build
 # or
-go build -o bin/kittentts ./cmd/kittentts
+go build -o bin/tts2go ./cmd/tts2go
 ```
 
 ## Usage
@@ -68,16 +68,16 @@ just run -t '"Hello, world!"' -o output.wav
 
 # Or run directly (requires ONNXRUNTIME_LIB_PATH or system-installed library)
 export ONNXRUNTIME_LIB_PATH=/path/to/lib/libonnxruntime.so
-./bin/kittentts -t "Hello, world!" -o output.wav
+./bin/tts2go -t "Hello, world!" -o output.wav
 
 # With voice selection
-./bin/kittentts -t "Hello, world!" -v expr-voice-3-f -o output.wav
+./bin/tts2go -t "Hello, world!" -v expr-voice-3-f -o output.wav
 
 # With speed adjustment
-./bin/kittentts -t "Hello, world!" -s 1.2 -o output.wav
+./bin/tts2go -t "Hello, world!" -s 1.2 -o output.wav
 
 # Full options
-./bin/kittentts \
+./bin/tts2go \
     --text "Hello, world!" \
     --voice af_heart \
     --speed 1.0 \
@@ -95,10 +95,10 @@ export ONNXRUNTIME_LIB_PATH=/path/to/lib/libonnxruntime.so
 
 Configuration can be provided via:
 1. Command-line flags
-2. Config file (`kittentts.cfg.toml`)
-3. Environment variables (prefixed with `KITTENTTS_`)
+2. Config file (`tts2go.cfg.toml`)
+3. Environment variables (prefixed with `TTS2GO_`)
 
-See `configs/kittentts.cfg.toml` for an example configuration file.
+See `configs/tts2go.cfg.toml` for an example configuration file.
 
 ## Development
 

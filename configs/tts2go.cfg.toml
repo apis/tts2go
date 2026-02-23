@@ -1,4 +1,4 @@
-# kittentts configuration file
+# tts2go configuration file
 
 # Path to ONNX model file
 model_path = "models/model.onnx"

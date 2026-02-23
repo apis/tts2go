@@ -1,8 +1,8 @@
-module kittentts
+module tts2go
 
 go 1.24.0
 
-replace github.com/neurlang/goruut => /home/apis/sandbox/goruut
+replace github.com/neurlang/goruut => ../goruut
 
 require (
 	github.com/neurlang/goruut v0.0.0-00010101000000-000000000000

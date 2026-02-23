@@ -1,4 +1,4 @@
-# KittenTTS Go Implementation Plan
+# TTS2Go Implementation Plan
 
 See the full implementation plan in the project conversation history.
 
@@ -8,4 +8,4 @@ See the full implementation plan in the project conversation history.
 2. Place `model.onnx`, `voices.npz`, and `config.json` in `models/` directory
 3. Run `just deps` to install dependencies
 4. Run `just build` to build the binary
-5. Run `./bin/kittentts -t "Hello world" -o test.wav`
+5. Run `./bin/tts2go -t "Hello world" -o test.wav`

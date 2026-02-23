@@ -45,7 +45,7 @@ func LoadAndParse() (*Config, error) {
 	viper.SetDefault("log_level", "info")
 	viper.SetDefault("log_file", "")
 
-	flagSet := pflag.NewFlagSet("kittentts", pflag.ContinueOnError)
+	flagSet := pflag.NewFlagSet("tts2go", pflag.ContinueOnError)
 	configFile := flagSet.StringP("config", "c", "", "Path to config file")
 	flagSet.StringP("text", "t", "", "Text to synthesize (use '-' to read from stdin)")
 	flagSet.StringP("file", "f", "", "Read text from file")
@@ -64,7 +64,7 @@ func LoadAndParse() (*Config, error) {
 	}
 
 	if *helpFlag {
-		fmt.Fprintf(os.Stderr, "Usage: kittentts [options] [text]\n\nOptions:\n")
+		fmt.Fprintf(os.Stderr, "Usage: tts2go [options] [text]\n\nOptions:\n")
 		flagSet.PrintDefaults()
 		os.Exit(0)
 	}
@@ -100,12 +100,12 @@ func LoadAndParse() (*Config, error) {
 	if *configFile != "" {
 		viper.SetConfigFile(*configFile)
 	} else {
-		viper.SetConfigName("kittentts.cfg")
+		viper.SetConfigName("tts2go.cfg")
 		viper.SetConfigType("toml")
 		viper.AddConfigPath(".")
 		viper.AddConfigPath("configs")
 		if home, err := os.UserHomeDir(); err == nil {
-			viper.AddConfigPath(filepath.Join(home, ".config", "kittentts"))
+			viper.AddConfigPath(filepath.Join(home, ".config", "tts2go"))
 		}
 	}
 
@@ -115,7 +115,7 @@ func LoadAndParse() (*Config, error) {
 		}
 	}
 
-	viper.SetEnvPrefix("KITTENTTS")
+	viper.SetEnvPrefix("TTS2GO")
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
 
