@@ -271,6 +271,7 @@ Maps IPA phoneme characters to integer token indices for model input.
 Loads and manages voice embedding vectors.
 
 **Supported Formats:**
+
 | Format | Description | Use Case |
 |--------|-------------|----------|
 | `.npz` | NumPy compressed archive | Kitten TTS (all voices in one file) |
@@ -318,6 +319,7 @@ flowchart TB
 Generates WAV files from model output.
 
 **Audio Specifications:**
+
 | Parameter | Value |
 |-----------|-------|
 | Sample Rate | 24,000 Hz |
@@ -731,6 +733,7 @@ flowchart TB
 **Library:** zerolog (structured JSON logging)
 
 **Log Levels:**
+
 | Level | Usage |
 |-------|-------|
 | `debug` | Configuration details, internal state |
@@ -828,33 +831,6 @@ tts2go 0.1.0
 | fp16 | 163 MB | Half precision |
 | fp32 | 326 MB | Full precision |
 | q4f16 | 154 MB | 4-bit + fp16 hybrid |
-
----
-
-## Appendix B: Build & Run Commands
-
-```bash
-# Setup
-just fetch-onnxruntime    # Download ONNX Runtime
-just fetch-models         # Download Kitten TTS (default: nano-fp32)
-just fetch-kokoro         # Alternative: Download Kokoro TTS
-just deps                 # Install Go dependencies
-
-# Build
-just build                # Development build
-just release              # Production build (stripped)
-just clean                # Remove artifacts
-just rebuild              # Clean + build
-
-# Run
-just run -t '"Hello"' -o out.wav
-just run --list-voices
-just run -f input.txt -v af_bella -s 1.2 -o speech.wav
-
-# Development
-just test                 # Run tests
-just fmt                  # Format code
-```
 
 ---
 
