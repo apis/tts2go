@@ -4,8 +4,8 @@ See the full implementation plan in the project conversation history.
 
 ## Quick Start
 
-1. Download models from HuggingFace: https://huggingface.co/KittenML/kitten-tts-nano-0.2
-2. Place `model.onnx`, `voices.npz`, and `config.json` in `models/` directory
-3. Run `just deps` to install dependencies
+1. Run `just fetch-onnxruntime` to download ONNX Runtime
+2. Run `just fetch-models` to download Kitten TTS models (or `just fetch-kokoro` for Kokoro)
+3. Run `just deps` to install Go dependencies
 4. Run `just build` to build the binary
-5. Run `./bin/tts2go -t "Hello world" -o test.wav`
+5. Run `just run -t '"Hello world"' -o test.wav`

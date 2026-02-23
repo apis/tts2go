@@ -11,11 +11,13 @@
 ## Build Commands (justfile)
 
 - `just build` - Build the tts2go binary to `bin/tts2go`
+- `just release` - Build production binary (stripped, no debug info)
 - `just clean` - Remove build artifacts
 - `just test` - Run tests
 - `just deps` - Download and verify Go dependencies
 - `just fmt` - Format Go code
-- `just fetch-models` - Download model files from HuggingFace
+- `just fetch-models` - Download Kitten TTS model files from HuggingFace
+- `just fetch-kokoro` - Download Kokoro TTS model files from HuggingFace
 - `just fetch-onnxruntime` - Download ONNX Runtime library to `lib/`
 - `just rebuild` - Full rebuild: clean and build
 - `just run` - Run tts2go with local ONNX Runtime (auto-sets ONNXRUNTIME_LIB_PATH)

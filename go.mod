@@ -1,6 +1,8 @@
 module tts2go
 
-go 1.24.0
+go 1.25
+
+toolchain go1.25.7
 
 replace github.com/neurlang/goruut => ../goruut
 
