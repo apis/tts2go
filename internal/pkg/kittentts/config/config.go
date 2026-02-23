@@ -23,11 +23,24 @@ type Config struct {
 	ListVoices bool    `mapstructure:"list_voices"`
 }
 
+func detectVoicesPath() string {
+	if info, err := os.Stat("models/voices"); err == nil && info.IsDir() {
+		entries, err := os.ReadDir("models/voices")
+		if err == nil && len(entries) > 0 {
+			return "models/voices"
+		}
+	}
+	if _, err := os.Stat("models/voices.npz"); err == nil {
+		return "models/voices.npz"
+	}
+	return "models/voices.npz"
+}
+
 func LoadAndParse() (*Config, error) {
 	viper.SetDefault("model_path", "models/model.onnx")
-	viper.SetDefault("voices_path", "models/voices.npz")
+	viper.SetDefault("voices_path", detectVoicesPath())
 	viper.SetDefault("output", "output.wav")
-	viper.SetDefault("voice", "expr-voice-2-f")
+	viper.SetDefault("voice", "")
 	viper.SetDefault("speed", 1.0)
 	viper.SetDefault("log_level", "info")
 	viper.SetDefault("log_file", "")
@@ -109,6 +122,10 @@ func LoadAndParse() (*Config, error) {
 	var cfg Config
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+
+	if cfg.VoicesPath == "" {
+		cfg.VoicesPath = detectVoicesPath()
 	}
 
 	textFile, _ := flagSet.GetString("file")

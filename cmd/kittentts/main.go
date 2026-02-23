@@ -43,9 +43,10 @@ func main() {
 	}
 	defer tts.Close()
 
+	voices := tts.ListVoices()
+	sort.Strings(voices)
+
 	if cfg.ListVoices {
-		voices := tts.ListVoices()
-		sort.Strings(voices)
 		fmt.Fprintf(os.Stderr, "Available voices (%d):\n", len(voices))
 		for _, v := range voices {
 			fmt.Fprintf(os.Stderr, "  %s\n", v)
@@ -53,7 +54,15 @@ func main() {
 		return
 	}
 
-	log.Debug().Strs("voices", tts.ListVoices()).Msg("Available voices")
+	if cfg.Voice == "" {
+		if len(voices) == 0 {
+			log.Fatal().Msg("No voices available")
+		}
+		cfg.Voice = voices[0]
+		log.Info().Str("voice", cfg.Voice).Msg("Auto-selected voice")
+	}
+
+	log.Debug().Strs("voices", voices).Msg("Available voices")
 
 	log.Info().Str("text", truncateText(cfg.Text, 50)).Msg("Generating speech...")
 	startTime := time.Now()
