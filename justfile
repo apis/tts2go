@@ -71,7 +71,9 @@ fetch-kitten variant="nano-fp32":
     set -euo pipefail
     rm -rf models
     mkdir -p models
-    case "{{variant}}" in
+    V="{{variant}}"
+    V="${V#variant=}"
+    case "$V" in
         nano-fp32)
             REPO="kitten-tts-nano-0.8-fp32"
             ONNX="kitten_tts_nano_v0_8.onnx"
@@ -89,7 +91,7 @@ fetch-kitten variant="nano-fp32":
             ONNX="kitten_tts_mini_v0_8.onnx"
             ;;
         *)
-            echo "Unknown variant: {{variant}}"
+            echo "Unknown variant: $V"
             echo "Available: nano-int8, nano-fp32, micro, mini"
             exit 1
             ;;
@@ -124,13 +126,15 @@ fetch-kokoro variant="q8":
     set -euo pipefail
     rm -rf models
     mkdir -p models/voices
-    case "{{variant}}" in
+    V="{{variant}}"
+    V="${V#variant=}"
+    case "$V" in
         fp32)   ONNX="model.onnx" ;;
         fp16)   ONNX="model_fp16.onnx" ;;
         q8)     ONNX="model_quantized.onnx" ;;
         q4f16)  ONNX="model_q4f16.onnx" ;;
         *)
-            echo "Unknown variant: {{variant}}"
+            echo "Unknown variant: $V"
             echo "Available: fp32, fp16, q8, q4f16"
             exit 1
             ;;
@@ -223,10 +227,12 @@ fetch-pocket variant="fp32":
     set -euo pipefail
     rm -rf models
     mkdir -p models
-    echo "Fetching PocketTTS ({{variant}})..."
+    V="{{variant}}"
+    V="${V#variant=}"
+    echo "Fetching PocketTTS ($V)..."
     curl -L -o models/text_conditioner.onnx "{{hf_pocket}}/resolve/main/text_conditioner.onnx"
     curl -L -o models/encoder.onnx "{{hf_pocket}}/resolve/main/encoder.onnx"
-    case "{{variant}}" in
+    case "$V" in
         fp32)
             curl -L -o models/lm_main.onnx "{{hf_pocket}}/resolve/main/lm_main.onnx"
             curl -L -o models/lm_flow.onnx "{{hf_pocket}}/resolve/main/lm_flow.onnx"
@@ -238,7 +244,7 @@ fetch-pocket variant="fp32":
             curl -L -o models/decoder_int8.onnx "{{hf_pocket}}/resolve/main/decoder_int8.onnx"
             ;;
         *)
-            echo "Unknown variant: {{variant}}"
+            echo "Unknown variant: $V"
             echo "Available: fp32, int8"
             exit 1
             ;;
