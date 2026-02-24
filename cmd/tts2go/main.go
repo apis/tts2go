@@ -35,15 +35,21 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to setup logging")
 	}
 
+	modelDir := filepath.Dir(cfg.ModelPath)
 	log.Debug().
-		Str("model", cfg.ModelPath).
-		Str("voices", cfg.VoicesPath).
-		Str("voice", cfg.Voice).
+		Str("model_dir", modelDir).
 		Str("backend", cfg.Backend).
+		Str("voice", cfg.Voice).
 		Float32("speed", cfg.Speed).
 		Msg("Configuration loaded")
 
-	engineCfg := buildEngineConfig(cfg)
+	engineCfg := engine.EngineConfig{
+		ModelPath:    cfg.ModelPath,
+		VoicesPath:   cfg.VoicesPath,
+		TokensPath:   cfg.TokensPath,
+		Backend:      cfg.Backend,
+		ModelVariant: cfg.ModelVariant,
+	}
 
 	log.Info().Str("backend", cfg.Backend).Msg("Loading TTS engine...")
 	eng, err := engine.New(cfg.Backend, engineCfg)
@@ -73,7 +79,7 @@ func main() {
 	}
 
 	if cfg.Voice == "" && cfg.ReferenceAudio == "" {
-		if len(voices) == 0 && cfg.Backend != "pockettts" {
+		if len(voices) == 0 && cfg.Backend != "pocket" {
 			log.Fatal().Msg("No voices available")
 		}
 		if len(voices) > 0 {
@@ -132,39 +138,6 @@ func main() {
 	}
 
 	log.Info().Str("output", cfg.Output).Msg("Audio saved successfully")
-}
-
-func buildEngineConfig(cfg *config.Config) engine.EngineConfig {
-	engineCfg := engine.EngineConfig{
-		ModelPath:    cfg.ModelPath,
-		VoicesPath:   cfg.VoicesPath,
-		TokensPath:   cfg.TokensPath,
-		Backend:      cfg.Backend,
-		ModelVariant: cfg.ModelVariant,
-	}
-
-	switch cfg.Backend {
-	case "kokoro-v1.0":
-		if engineCfg.ModelPath == "models/model.onnx" {
-			engineCfg.ModelPath = "models/kokoro-v1.0"
-		}
-		if engineCfg.VoicesPath == "models/voices.npz" || engineCfg.VoicesPath == "models/voices" {
-			engineCfg.VoicesPath = filepath.Join(engineCfg.ModelPath, "voices")
-		}
-	case "kokoro-v1.1":
-		if engineCfg.ModelPath == "models/model.onnx" {
-			engineCfg.ModelPath = "models/kokoro-v1.1"
-		}
-		if engineCfg.VoicesPath == "models/voices.npz" || engineCfg.VoicesPath == "models/voices" {
-			engineCfg.VoicesPath = filepath.Join(engineCfg.ModelPath, "voices")
-		}
-	case "pockettts":
-		if engineCfg.ModelPath == "models/model.onnx" {
-			engineCfg.ModelPath = "models/pockettts"
-		}
-	}
-
-	return engineCfg
 }
 
 func setupLogging(cfg *config.Config) error {

@@ -15,8 +15,8 @@ import (
 )
 
 func init() {
-	engine.Register("kokoro-v1.0", newEngineV10)
-	engine.Register("kokoro-v1.1", newEngineV11)
+	engine.Register("kokoro-1.0", newEngineV10)
+	engine.Register("kokoro-1.1", newEngineV11)
 }
 
 type Engine struct {
@@ -213,8 +213,12 @@ func (e *Engine) ListVoices() []string {
 }
 
 func (e *Engine) Info() engine.EngineInfo {
+	name := "kokoro-1.0"
+	if e.version == "v1.1" {
+		name = "kokoro-1.1"
+	}
 	return engine.EngineInfo{
-		Name:       "kokoro-" + e.version,
+		Name:       name,
 		Languages:  e.languages,
 		SampleRate: audio.SampleRate,
 	}

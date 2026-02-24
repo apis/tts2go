@@ -27,42 +27,43 @@ type Config struct {
 	ModelVariant   string  `mapstructure:"model_variant"`
 }
 
-func detectVoicesPath() string {
-	if info, err := os.Stat("models/voices"); err == nil && info.IsDir() {
-		entries, err := os.ReadDir("models/voices")
+func detectVoicesPath(modelDir string) string {
+	voicesDir := filepath.Join(modelDir, "voices")
+	if info, err := os.Stat(voicesDir); err == nil && info.IsDir() {
+		entries, err := os.ReadDir(voicesDir)
 		if err == nil && len(entries) > 0 {
-			return "models/voices"
+			return voicesDir
 		}
 	}
-	if _, err := os.Stat("models/voices.npz"); err == nil {
-		return "models/voices.npz"
+	npzPath := filepath.Join(modelDir, "voices.npz")
+	if _, err := os.Stat(npzPath); err == nil {
+		return npzPath
 	}
-	return "models/voices.npz"
+	return npzPath
 }
 
-func detectBackend() string {
-	if _, err := os.Stat("models/pockettts/vocab.json"); err == nil {
-		return "pockettts"
+func detectBackend(modelDir string) string {
+	if _, err := os.Stat(filepath.Join(modelDir, "vocab.json")); err == nil {
+		return "pocket"
 	}
-	if _, err := os.Stat("models/kokoro-v1.1/tokens.txt"); err == nil {
-		return "kokoro-v1.1"
-	}
-	if _, err := os.Stat("models/kokoro-v1.0/tokens.txt"); err == nil {
-		return "kokoro-v1.0"
+	if _, err := os.Stat(filepath.Join(modelDir, "tokens.txt")); err == nil {
+		return "kokoro-1.0"
 	}
 	return "kokoro"
 }
 
 func LoadAndParse() (*Config, error) {
-	viper.SetDefault("model_path", "models/model.onnx")
-	viper.SetDefault("voices_path", detectVoicesPath())
-	viper.SetDefault("tokens_path", "")
+	modelDir := "models"
+
+	viper.SetDefault("model_path", filepath.Join(modelDir, "model.onnx"))
+	viper.SetDefault("voices_path", detectVoicesPath(modelDir))
+	viper.SetDefault("tokens_path", filepath.Join(modelDir, "tokens.txt"))
 	viper.SetDefault("output", "output.wav")
 	viper.SetDefault("voice", "")
 	viper.SetDefault("speed", 1.0)
 	viper.SetDefault("log_level", "info")
 	viper.SetDefault("log_file", "")
-	viper.SetDefault("backend", "kokoro")
+	viper.SetDefault("backend", detectBackend(modelDir))
 	viper.SetDefault("reference_audio", "")
 	viper.SetDefault("model_variant", "")
 
@@ -73,15 +74,11 @@ func LoadAndParse() (*Config, error) {
 	flagSet.StringP("output", "o", "", "Output WAV file")
 	flagSet.StringP("voice", "v", "", "Voice to use")
 	flagSet.Float32P("speed", "s", 1.0, "Speech speed (0.5-2.0)")
-	flagSet.StringP("model", "m", "", "Path to ONNX model file or directory")
-	flagSet.String("voices", "", "Path to voices (NPZ file or directory with .npy/.bin files)")
-	flagSet.String("tokens", "", "Path to tokens.txt file (for Kokoro v1.0/v1.1)")
+	flagSet.StringP("model", "m", "", "Path to models directory")
 	flagSet.StringP("log-level", "l", "", "Log level (debug, info, warn, error)")
 	flagSet.String("log-file", "", "Log file path")
 	flagSet.Bool("list-voices", false, "List available voices and exit")
-	flagSet.StringP("backend", "b", "", "TTS backend (kokoro, kokoro-v1.0, kokoro-v1.1, pockettts)")
 	flagSet.StringP("reference", "r", "", "Reference audio file for voice cloning (PocketTTS)")
-	flagSet.String("variant", "", "Model variant (e.g., int8 for PocketTTS)")
 	helpFlag := flagSet.BoolP("help", "h", false, "Show help message")
 
 	if err := flagSet.Parse(os.Args[1:]); err != nil {
@@ -91,11 +88,10 @@ func LoadAndParse() (*Config, error) {
 	if *helpFlag {
 		fmt.Fprintf(os.Stderr, "Usage: tts2go [options] [text]\n\nOptions:\n")
 		flagSet.PrintDefaults()
-		fmt.Fprintf(os.Stderr, "\nBackends:\n")
-		fmt.Fprintf(os.Stderr, "  kokoro       Original Kokoro/Kitten TTS (English, IPA phonemizer)\n")
-		fmt.Fprintf(os.Stderr, "  kokoro-v1.0  Kokoro multi-lang v1.0 (Chinese + English, 53 speakers)\n")
-		fmt.Fprintf(os.Stderr, "  kokoro-v1.1  Kokoro multi-lang v1.1 (Chinese optimized, mixed zh/en)\n")
-		fmt.Fprintf(os.Stderr, "  pockettts    PocketTTS with zero-shot voice cloning\n")
+		fmt.Fprintf(os.Stderr, "\nModel auto-detection (based on files in models/):\n")
+		fmt.Fprintf(os.Stderr, "  vocab.json present    -> PocketTTS (voice cloning)\n")
+		fmt.Fprintf(os.Stderr, "  tokens.txt present    -> Kokoro multi-lang (Chinese + English)\n")
+		fmt.Fprintf(os.Stderr, "  otherwise             -> Kokoro/Kitten (English, IPA phonemizer)\n")
 		os.Exit(0)
 	}
 
@@ -111,15 +107,6 @@ func LoadAndParse() (*Config, error) {
 	if err := viper.BindPFlag("speed", flagSet.Lookup("speed")); err != nil {
 		return nil, err
 	}
-	if err := viper.BindPFlag("model_path", flagSet.Lookup("model")); err != nil {
-		return nil, err
-	}
-	if err := viper.BindPFlag("voices_path", flagSet.Lookup("voices")); err != nil {
-		return nil, err
-	}
-	if err := viper.BindPFlag("tokens_path", flagSet.Lookup("tokens")); err != nil {
-		return nil, err
-	}
 	if err := viper.BindPFlag("log_level", flagSet.Lookup("log-level")); err != nil {
 		return nil, err
 	}
@@ -129,14 +116,17 @@ func LoadAndParse() (*Config, error) {
 	if err := viper.BindPFlag("list_voices", flagSet.Lookup("list-voices")); err != nil {
 		return nil, err
 	}
-	if err := viper.BindPFlag("backend", flagSet.Lookup("backend")); err != nil {
-		return nil, err
-	}
 	if err := viper.BindPFlag("reference_audio", flagSet.Lookup("reference")); err != nil {
 		return nil, err
 	}
-	if err := viper.BindPFlag("model_variant", flagSet.Lookup("variant")); err != nil {
-		return nil, err
+
+	customModelDir, _ := flagSet.GetString("model")
+	if customModelDir != "" {
+		modelDir = customModelDir
+		viper.Set("model_path", filepath.Join(modelDir, "model.onnx"))
+		viper.Set("voices_path", detectVoicesPath(modelDir))
+		viper.Set("tokens_path", filepath.Join(modelDir, "tokens.txt"))
+		viper.Set("backend", detectBackend(modelDir))
 	}
 
 	if *configFile != "" {
@@ -164,14 +154,6 @@ func LoadAndParse() (*Config, error) {
 	var cfg Config
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
-	}
-
-	if cfg.VoicesPath == "" {
-		cfg.VoicesPath = detectVoicesPath()
-	}
-
-	if cfg.Backend == "" || cfg.Backend == "kokoro" {
-		cfg.Backend = detectBackend()
 	}
 
 	textFile, _ := flagSet.GetString("file")

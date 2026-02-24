@@ -14,7 +14,7 @@ const (
 )
 
 func init() {
-	engine.Register("pockettts", NewEngine)
+	engine.Register("pocket", NewEngine)
 }
 
 type Engine struct {
@@ -170,7 +170,7 @@ func (e *Engine) ListVoices() []string {
 
 func (e *Engine) Info() engine.EngineInfo {
 	return engine.EngineInfo{
-		Name:       "pockettts",
+		Name:       "pocket",
 		Languages:  []string{"en", "zh", "multilingual"},
 		SampleRate: pocketSampleRate,
 	}
