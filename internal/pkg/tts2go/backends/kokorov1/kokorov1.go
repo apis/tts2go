@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 
 	ort "github.com/yalue/onnxruntime_go"
 
@@ -20,11 +19,14 @@ func init() {
 }
 
 type Engine struct {
-	session   *ort.DynamicAdvancedSession
-	voices    *voice.VoiceStore
-	tokenizer *Tokenizer
-	version   string
-	languages []string
+	session     *ort.DynamicAdvancedSession
+	voiceStore  *voice.SherpaVoiceStore
+	tokenizer   *Tokenizer
+	version     string
+	languages   []string
+	numSpeakers int
+	styleDim0   int
+	styleDim1   int
 }
 
 func getOnnxRuntimeLibPath() string {
@@ -77,14 +79,14 @@ func getOnnxRuntimeLibPath() string {
 }
 
 func newEngineV10(cfg engine.EngineConfig) (engine.Engine, error) {
-	return newEngine(cfg, "v1.0", []string{"en", "zh"})
+	return newEngine(cfg, "v1.0", []string{"en", "zh"}, 53, 512, 256)
 }
 
 func newEngineV11(cfg engine.EngineConfig) (engine.Engine, error) {
-	return newEngine(cfg, "v1.1", []string{"zh", "en"})
+	return newEngine(cfg, "v1.1", []string{"zh", "en"}, 103, 512, 256)
 }
 
-func newEngine(cfg engine.EngineConfig, version string, languages []string) (engine.Engine, error) {
+func newEngine(cfg engine.EngineConfig, version string, languages []string, numSpeakers, styleDim0, styleDim1 int) (engine.Engine, error) {
 	libPath := getOnnxRuntimeLibPath()
 	ort.SetSharedLibraryPath(libPath)
 
@@ -92,46 +94,35 @@ func newEngine(cfg engine.EngineConfig, version string, languages []string) (eng
 		return nil, fmt.Errorf("failed to initialize ONNX runtime: %w", err)
 	}
 
-	modelDir := cfg.ModelPath
-	if strings.HasSuffix(modelDir, ".onnx") {
-		modelDir = filepath.Dir(modelDir)
+	modelDir := filepath.Dir(cfg.ModelPath)
+	if cfg.ModelPath == "models/model.onnx" || cfg.ModelPath == "models" {
+		modelDir = "models"
 	}
 
 	modelPath := filepath.Join(modelDir, "model.onnx")
-	if _, err := os.Stat(modelPath); os.IsNotExist(err) {
-		modelPath = cfg.ModelPath
-	}
 
 	tokensPath := cfg.TokensPath
 	if tokensPath == "" {
 		tokensPath = filepath.Join(modelDir, "tokens.txt")
 	}
 
-	voicesPath := cfg.VoicesPath
-	if voicesPath == "" {
-		voicesPath = filepath.Join(modelDir, "voices")
-	}
+	voicesPath := filepath.Join(modelDir, "voices.bin")
 
 	tokenizer, err := NewTokenizer(tokensPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load tokenizer: %w", err)
 	}
 
-	var voices *voice.VoiceStore
-	if info, err := os.Stat(voicesPath); err == nil && info.IsDir() {
-		voices, err = voice.LoadVoicesFromDir(voicesPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load voices from directory: %w", err)
+	voiceNames := voice.GetKokoroV10VoiceNames()
+	if numSpeakers > len(voiceNames) {
+		for i := len(voiceNames); i < numSpeakers; i++ {
+			voiceNames = append(voiceNames, fmt.Sprintf("speaker_%d", i))
 		}
-	} else {
-		voices, err = voice.LoadVoices(voicesPath)
-		if err != nil {
-			voicesDir := filepath.Join(modelDir, "voices")
-			voices, err = voice.LoadVoicesFromDir(voicesDir)
-			if err != nil {
-				return nil, fmt.Errorf("failed to load voices: %w", err)
-			}
-		}
+	}
+
+	voiceStore, err := voice.LoadSherpaVoicesBin(voicesPath, numSpeakers, styleDim0, styleDim1, voiceNames)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load voices: %w", err)
 	}
 
 	inputNames := []string{"input_ids", "style", "speed"}
@@ -148,11 +139,14 @@ func newEngine(cfg engine.EngineConfig, version string, languages []string) (eng
 	}
 
 	return &Engine{
-		session:   session,
-		voices:    voices,
-		tokenizer: tokenizer,
-		version:   version,
-		languages: languages,
+		session:     session,
+		voiceStore:  voiceStore,
+		tokenizer:   tokenizer,
+		version:     version,
+		languages:   languages,
+		numSpeakers: numSpeakers,
+		styleDim0:   styleDim0,
+		styleDim1:   styleDim1,
 	}, nil
 }
 
@@ -163,7 +157,8 @@ func (e *Engine) Generate(text, voiceName string, speed float32) (*audio.Audio, 
 		return nil, fmt.Errorf("failed to tokenize text")
 	}
 
-	voiceEmbedding, err := e.voices.Get(voiceName)
+	tokenLen := len(tokens)
+	styleEmbedding, err := e.voiceStore.GetStyle(voiceName, tokenLen)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get voice embedding: %w", err)
 	}
@@ -174,7 +169,7 @@ func (e *Engine) Generate(text, voiceName string, speed float32) (*audio.Audio, 
 	}
 	defer inputIdsTensor.Destroy()
 
-	styleTensor, err := ort.NewTensor(ort.NewShape(1, int64(len(voiceEmbedding))), voiceEmbedding)
+	styleTensor, err := ort.NewTensor(ort.NewShape(1, int64(len(styleEmbedding))), styleEmbedding)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create style tensor: %w", err)
 	}
@@ -209,7 +204,7 @@ func (e *Engine) Generate(text, voiceName string, speed float32) (*audio.Audio, 
 }
 
 func (e *Engine) ListVoices() []string {
-	return e.voices.List()
+	return e.voiceStore.List()
 }
 
 func (e *Engine) Info() engine.EngineInfo {

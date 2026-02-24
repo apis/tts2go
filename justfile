@@ -58,9 +58,10 @@ ort_version := "1.24.2"
 # HuggingFace base URLs
 hf_kitten := "https://huggingface.co/KittenML"
 hf_kokoro := "https://huggingface.co/onnx-community/Kokoro-82M-ONNX"
-hf_kokoro_1_0 := "https://huggingface.co/k2-fsa/sherpa-onnx-kokoro-multi-lang-v1_0"
-hf_kokoro_1_1 := "https://huggingface.co/k2-fsa/sherpa-onnx-kokoro-multi-lang-v1_1"
-hf_pocket := "https://huggingface.co/KevinAHM/pocket-tts-onnx"
+hf_kokoro_1_0 := "https://huggingface.co/csukuangfj/kokoro-multi-lang-v1_0"
+hf_kokoro_1_1 := "https://huggingface.co/csukuangfj/kokoro-multi-lang-v1_1"
+hf_pocket := "https://huggingface.co/csukuangfj2/sherpa-onnx-pocket-tts-2026-01-26"
+hf_pocket_int8 := "https://huggingface.co/csukuangfj2/sherpa-onnx-pocket-tts-int8-2026-01-26"
 
 # Fetch Kitten TTS model files
 # Usage: just fetch-kitten [variant]
@@ -164,31 +165,27 @@ fetch-kokoro variant="q8":
     }; \
     Get-ChildItem models\
 
-# Fetch Kokoro 1.0 multi-lang model (Chinese + English, 53 speakers)
+# Fetch Kokoro 1.0 multi-lang model (Chinese + English)
 [unix]
 fetch-kokoro-1_0:
     #!/usr/bin/env bash
     set -euo pipefail
     rm -rf models
-    mkdir -p models/voices
+    mkdir -p models
     echo "Fetching Kokoro 1.0 multi-lang..."
     curl -L -o models/model.onnx "{{hf_kokoro_1_0}}/resolve/main/model.onnx"
     curl -L -o models/tokens.txt "{{hf_kokoro_1_0}}/resolve/main/tokens.txt"
-    for voice in af_alloy af_bella af_nicole af_sarah af_sky am_adam am_michael zf_xiaobei zf_xiaoni zf_xiaoxiao zf_xiaoyi zm_yunjian zm_yunxi zm_yunxia zm_yunyang; do
-        curl -sL -o "models/voices/${voice}.bin" "{{hf_kokoro_1_0}}/resolve/main/voices/${voice}.bin" || true
-    done
+    curl -L -o models/voices.bin "{{hf_kokoro_1_0}}/resolve/main/voices.bin"
     echo "Done: models/"
     ls -lh models/
 
 [windows]
 fetch-kokoro-1_0:
     @Remove-Item -Recurse -Force models -ErrorAction SilentlyContinue
-    @New-Item -ItemType Directory -Force -Path models\voices | Out-Null
+    @New-Item -ItemType Directory -Force -Path models | Out-Null
     @Invoke-WebRequest -Uri "{{hf_kokoro_1_0}}/resolve/main/model.onnx" -OutFile models\model.onnx
     @Invoke-WebRequest -Uri "{{hf_kokoro_1_0}}/resolve/main/tokens.txt" -OutFile models\tokens.txt
-    @("af_alloy","af_bella","af_nicole","af_sarah","af_sky","am_adam","am_michael","zf_xiaoxiao","zm_yunxi") | ForEach-Object { \
-        try { Invoke-WebRequest -Uri "{{hf_kokoro_1_0}}/resolve/main/voices/$_.bin" -OutFile "models\voices\$_.bin" } catch {} \
-    }
+    @Invoke-WebRequest -Uri "{{hf_kokoro_1_0}}/resolve/main/voices.bin" -OutFile models\voices.bin
     @Get-ChildItem models\
 
 # Fetch Kokoro 1.1 multi-lang model (Chinese optimized)
@@ -197,25 +194,21 @@ fetch-kokoro-1_1:
     #!/usr/bin/env bash
     set -euo pipefail
     rm -rf models
-    mkdir -p models/voices
+    mkdir -p models
     echo "Fetching Kokoro 1.1 multi-lang..."
     curl -L -o models/model.onnx "{{hf_kokoro_1_1}}/resolve/main/model.onnx"
     curl -L -o models/tokens.txt "{{hf_kokoro_1_1}}/resolve/main/tokens.txt"
-    for voice in af_alloy af_bella af_nicole af_sarah af_sky am_adam am_michael zf_xiaobei zf_xiaoni zf_xiaoxiao zf_xiaoyi zm_yunjian zm_yunxi zm_yunxia zm_yunyang; do
-        curl -sL -o "models/voices/${voice}.bin" "{{hf_kokoro_1_1}}/resolve/main/voices/${voice}.bin" || true
-    done
+    curl -L -o models/voices.bin "{{hf_kokoro_1_1}}/resolve/main/voices.bin"
     echo "Done: models/"
     ls -lh models/
 
 [windows]
 fetch-kokoro-1_1:
     @Remove-Item -Recurse -Force models -ErrorAction SilentlyContinue
-    @New-Item -ItemType Directory -Force -Path models\voices | Out-Null
+    @New-Item -ItemType Directory -Force -Path models | Out-Null
     @Invoke-WebRequest -Uri "{{hf_kokoro_1_1}}/resolve/main/model.onnx" -OutFile models\model.onnx
     @Invoke-WebRequest -Uri "{{hf_kokoro_1_1}}/resolve/main/tokens.txt" -OutFile models\tokens.txt
-    @("af_alloy","af_bella","af_nicole","af_sarah","af_sky","am_adam","am_michael","zf_xiaoxiao","zm_yunxi") | ForEach-Object { \
-        try { Invoke-WebRequest -Uri "{{hf_kokoro_1_1}}/resolve/main/voices/$_.bin" -OutFile "models\voices\$_.bin" } catch {} \
-    }
+    @Invoke-WebRequest -Uri "{{hf_kokoro_1_1}}/resolve/main/voices.bin" -OutFile models\voices.bin
     @Get-ChildItem models\
 
 # Fetch PocketTTS model files (voice cloning)
@@ -229,19 +222,12 @@ fetch-pocket variant="fp32":
     mkdir -p models
     V="{{variant}}"
     V="${V#variant=}"
-    echo "Fetching PocketTTS ($V)..."
-    curl -L -o models/text_conditioner.onnx "{{hf_pocket}}/resolve/main/text_conditioner.onnx"
-    curl -L -o models/encoder.onnx "{{hf_pocket}}/resolve/main/encoder.onnx"
     case "$V" in
         fp32)
-            curl -L -o models/lm_main.onnx "{{hf_pocket}}/resolve/main/lm_main.onnx"
-            curl -L -o models/lm_flow.onnx "{{hf_pocket}}/resolve/main/lm_flow.onnx"
-            curl -L -o models/decoder.onnx "{{hf_pocket}}/resolve/main/decoder.onnx"
+            REPO="{{hf_pocket}}"
             ;;
         int8)
-            curl -L -o models/lm_main_int8.onnx "{{hf_pocket}}/resolve/main/lm_main_int8.onnx"
-            curl -L -o models/lm_flow_int8.onnx "{{hf_pocket}}/resolve/main/lm_flow_int8.onnx"
-            curl -L -o models/decoder_int8.onnx "{{hf_pocket}}/resolve/main/decoder_int8.onnx"
+            REPO="{{hf_pocket_int8}}"
             ;;
         *)
             echo "Unknown variant: $V"
@@ -249,8 +235,14 @@ fetch-pocket variant="fp32":
             exit 1
             ;;
     esac
-    curl -L -o models/vocab.json "{{hf_pocket}}/resolve/main/vocab.json"
-    curl -L -o models/token_scores.json "{{hf_pocket}}/resolve/main/token_scores.json" || true
+    echo "Fetching PocketTTS ($V)..."
+    curl -L -o models/text_conditioner.onnx "$REPO/resolve/main/text_conditioner.onnx"
+    curl -L -o models/encoder.onnx "$REPO/resolve/main/encoder.onnx"
+    curl -L -o models/lm_main.onnx "$REPO/resolve/main/lm_main.onnx"
+    curl -L -o models/lm_flow.onnx "$REPO/resolve/main/lm_flow.onnx"
+    curl -L -o models/decoder.onnx "$REPO/resolve/main/decoder.onnx"
+    curl -L -o models/vocab.json "$REPO/resolve/main/vocab.json"
+    curl -L -o models/token_scores.json "$REPO/resolve/main/token_scores.json"
     echo "Done: models/"
     ls -lh models/
 
@@ -258,23 +250,14 @@ fetch-pocket variant="fp32":
 fetch-pocket variant="fp32":
     @Remove-Item -Recurse -Force models -ErrorAction SilentlyContinue
     @New-Item -ItemType Directory -Force -Path models | Out-Null
-    @Invoke-WebRequest -Uri "{{hf_pocket}}/resolve/main/text_conditioner.onnx" -OutFile models\text_conditioner.onnx
-    @Invoke-WebRequest -Uri "{{hf_pocket}}/resolve/main/encoder.onnx" -OutFile models\encoder.onnx
-    @switch ("{{variant}}") { \
-        "fp32" { \
-            Invoke-WebRequest -Uri "{{hf_pocket}}/resolve/main/lm_main.onnx" -OutFile models\lm_main.onnx; \
-            Invoke-WebRequest -Uri "{{hf_pocket}}/resolve/main/lm_flow.onnx" -OutFile models\lm_flow.onnx; \
-            Invoke-WebRequest -Uri "{{hf_pocket}}/resolve/main/decoder.onnx" -OutFile models\decoder.onnx \
-        } \
-        "int8" { \
-            Invoke-WebRequest -Uri "{{hf_pocket}}/resolve/main/lm_main_int8.onnx" -OutFile models\lm_main_int8.onnx; \
-            Invoke-WebRequest -Uri "{{hf_pocket}}/resolve/main/lm_flow_int8.onnx" -OutFile models\lm_flow_int8.onnx; \
-            Invoke-WebRequest -Uri "{{hf_pocket}}/resolve/main/decoder_int8.onnx" -OutFile models\decoder_int8.onnx \
-        } \
-        default { Write-Error "Unknown variant"; exit 1 } \
-    }
-    @Invoke-WebRequest -Uri "{{hf_pocket}}/resolve/main/vocab.json" -OutFile models\vocab.json
-    @try { Invoke-WebRequest -Uri "{{hf_pocket}}/resolve/main/token_scores.json" -OutFile models\token_scores.json } catch {}
+    @$repo = if ("{{variant}}" -eq "int8") { "{{hf_pocket_int8}}" } else { "{{hf_pocket}}" }
+    @Invoke-WebRequest -Uri "$repo/resolve/main/text_conditioner.onnx" -OutFile models\text_conditioner.onnx
+    @Invoke-WebRequest -Uri "$repo/resolve/main/encoder.onnx" -OutFile models\encoder.onnx
+    @Invoke-WebRequest -Uri "$repo/resolve/main/lm_main.onnx" -OutFile models\lm_main.onnx
+    @Invoke-WebRequest -Uri "$repo/resolve/main/lm_flow.onnx" -OutFile models\lm_flow.onnx
+    @Invoke-WebRequest -Uri "$repo/resolve/main/decoder.onnx" -OutFile models\decoder.onnx
+    @Invoke-WebRequest -Uri "$repo/resolve/main/vocab.json" -OutFile models\vocab.json
+    @Invoke-WebRequest -Uri "$repo/resolve/main/token_scores.json" -OutFile models\token_scores.json
     @Get-ChildItem models\
 
 # Full rebuild

@@ -303,3 +303,84 @@ func loadBinVoice(path string) ([]float32, error) {
 
 	return floats[:expectedEmbeddingDim], nil
 }
+
+var kokoroV10Voices = []string{
+	"af_alloy", "af_aoede", "af_bella", "af_heart", "af_jessica", "af_kore", "af_nicole", "af_nova", "af_river", "af_sarah", "af_sky",
+	"am_adam", "am_echo", "am_eric", "am_fenrir", "am_liam", "am_michael", "am_onyx", "am_puck", "am_santa",
+	"bf_alice", "bf_emma", "bf_isabella", "bf_lily", "bm_daniel", "bm_fable", "bm_george", "bm_lewis",
+	"ef_dora", "em_alex", "ff_siwis", "hf_alpha", "hf_beta", "hm_omega", "hm_psi", "if_sara", "im_nicola",
+	"jf_alpha", "jf_gongitsune", "jf_nezumi", "jf_tebukuro", "jm_kumo", "pf_dora", "pm_alex", "pm_santa",
+	"zf_xiaobei", "zf_xiaoni", "zf_xiaoxiao", "zf_xiaoyi", "zm_yunjian", "zm_yunxi", "zm_yunxia", "zm_yunyang",
+}
+
+type SherpaVoiceStore struct {
+	data        []float32
+	numSpeakers int
+	styleDim0   int
+	styleDim1   int
+	voiceNames  []string
+	nameToID    map[string]int
+}
+
+func LoadSherpaVoicesBin(path string, numSpeakers, styleDim0, styleDim1 int, voiceNames []string) (*SherpaVoiceStore, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read voices.bin: %w", err)
+	}
+
+	numFloats := len(data) / 4
+	expectedFloats := numSpeakers * styleDim0 * styleDim1
+	if numFloats < expectedFloats {
+		return nil, fmt.Errorf("voices.bin too small: got %d floats, expected %d", numFloats, expectedFloats)
+	}
+
+	floats := make([]float32, numFloats)
+	for i := 0; i < numFloats; i++ {
+		bits := binary.LittleEndian.Uint32(data[i*4 : (i+1)*4])
+		floats[i] = math.Float32frombits(bits)
+	}
+
+	nameToID := make(map[string]int)
+	for i, name := range voiceNames {
+		nameToID[name] = i
+	}
+
+	return &SherpaVoiceStore{
+		data:        floats,
+		numSpeakers: numSpeakers,
+		styleDim0:   styleDim0,
+		styleDim1:   styleDim1,
+		voiceNames:  voiceNames,
+		nameToID:    nameToID,
+	}, nil
+}
+
+func (s *SherpaVoiceStore) GetStyle(voiceName string, tokenLen int) ([]float32, error) {
+	sid, ok := s.nameToID[voiceName]
+	if !ok {
+		return nil, fmt.Errorf("voice not found: %s", voiceName)
+	}
+
+	if tokenLen >= s.styleDim0 {
+		tokenLen = s.styleDim0 - 1
+	}
+
+	offset := sid*s.styleDim0*s.styleDim1 + tokenLen*s.styleDim1
+	if offset+s.styleDim1 > len(s.data) {
+		return nil, fmt.Errorf("invalid offset for voice %s at len %d", voiceName, tokenLen)
+	}
+
+	return s.data[offset : offset+s.styleDim1], nil
+}
+
+func (s *SherpaVoiceStore) List() []string {
+	return s.voiceNames
+}
+
+func (s *SherpaVoiceStore) NumSpeakers() int {
+	return s.numSpeakers
+}
+
+func GetKokoroV10VoiceNames() []string {
+	return kokoroV10Voices
+}

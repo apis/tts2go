@@ -47,7 +47,9 @@ func detectBackend(modelDir string) string {
 		return "pocket"
 	}
 	if _, err := os.Stat(filepath.Join(modelDir, "tokens.txt")); err == nil {
-		return "kokoro-1.0"
+		if _, err := os.Stat(filepath.Join(modelDir, "voices.bin")); err == nil {
+			return "kokoro-1.0"
+		}
 	}
 	return "kokoro"
 }
