@@ -10,6 +10,14 @@ import (
 	ort "github.com/yalue/onnxruntime_go"
 )
 
+const (
+	lmMainStateCount  = 18
+	decoderStateCount = 56
+	seqFeatureDim     = 32
+	hiddenDim         = 1024
+	numFlowSteps      = 32
+)
+
 type Pipeline struct {
 	modelDir        string
 	textConditioner *ort.DynamicAdvancedSession
@@ -106,18 +114,26 @@ func NewPipeline(modelDir string, useInt8 bool) (*Pipeline, error) {
 
 	p.textConditioner, err = ort.NewDynamicAdvancedSession(
 		textConditionerPath,
-		[]string{"input_ids"},
-		[]string{"text_embeds"},
+		[]string{"token_ids"},
+		[]string{"embeddings"},
 		nil,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load text_conditioner: %w", err)
 	}
 
+	lmMainInputs := []string{"sequence", "text_embeddings"}
+	for i := 0; i < lmMainStateCount; i++ {
+		lmMainInputs = append(lmMainInputs, fmt.Sprintf("state_%d", i))
+	}
+	lmMainOutputs := []string{"conditioning", "eos_logit"}
+	for i := 0; i < lmMainStateCount; i++ {
+		lmMainOutputs = append(lmMainOutputs, fmt.Sprintf("out_state_%d", i))
+	}
 	p.lmMain, err = ort.NewDynamicAdvancedSession(
 		lmMainPath,
-		[]string{"text_embeds", "audio_embeds", "cond_scale"},
-		[]string{"conditioning"},
+		lmMainInputs,
+		lmMainOutputs,
 		nil,
 	)
 	if err != nil {
@@ -127,8 +143,8 @@ func NewPipeline(modelDir string, useInt8 bool) (*Pipeline, error) {
 
 	p.lmFlow, err = ort.NewDynamicAdvancedSession(
 		lmFlowPath,
-		[]string{"conditioning", "latents", "timestep"},
-		[]string{"output"},
+		[]string{"c", "s", "t", "x"},
+		[]string{"flow_dir"},
 		nil,
 	)
 	if err != nil {
@@ -139,7 +155,7 @@ func NewPipeline(modelDir string, useInt8 bool) (*Pipeline, error) {
 	p.encoder, err = ort.NewDynamicAdvancedSession(
 		encoderPath,
 		[]string{"audio"},
-		[]string{"audio_embeds"},
+		[]string{"latents"},
 		nil,
 	)
 	if err != nil {
@@ -147,10 +163,18 @@ func NewPipeline(modelDir string, useInt8 bool) (*Pipeline, error) {
 		return nil, fmt.Errorf("failed to load encoder: %w", err)
 	}
 
+	decoderInputs := []string{"latent"}
+	for i := 0; i < decoderStateCount; i++ {
+		decoderInputs = append(decoderInputs, fmt.Sprintf("state_%d", i))
+	}
+	decoderOutputs := []string{"audio_frame"}
+	for i := 0; i < decoderStateCount; i++ {
+		decoderOutputs = append(decoderOutputs, fmt.Sprintf("out_state_%d", i))
+	}
 	p.decoder, err = ort.NewDynamicAdvancedSession(
 		decoderPath,
-		[]string{"latents"},
-		[]string{"audio"},
+		decoderInputs,
+		decoderOutputs,
 		nil,
 	)
 	if err != nil {
@@ -189,135 +213,209 @@ func (p *Pipeline) EncodeReference(audio []float32) ([]float32, error) {
 	return outputTensor.GetData(), nil
 }
 
-func (p *Pipeline) Generate(textEmbeds, audioEmbeds []float32, textLen, audioLen int64, speed float32) ([]float32, error) {
-	textEmbedsTensor, err := ort.NewTensor(ort.NewShape(1, textLen, int64(len(textEmbeds))/textLen), textEmbeds)
+func (p *Pipeline) Generate(textEmbeds, speakerEmbeds []float32, speed float32) ([]float32, error) {
+	textLen := int64(len(textEmbeds)) / hiddenDim
+
+	conditioning, err := p.runLMMain(textEmbeds, textLen)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create text_embeds tensor: %w", err)
-	}
-	defer textEmbedsTensor.Destroy()
-
-	audioEmbedsTensor, err := ort.NewTensor(ort.NewShape(1, audioLen, int64(len(audioEmbeds))/audioLen), audioEmbeds)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create audio_embeds tensor: %w", err)
-	}
-	defer audioEmbedsTensor.Destroy()
-
-	condScale := []float32{1.0 / speed}
-	condScaleTensor, err := ort.NewTensor(ort.NewShape(1), condScale)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create cond_scale tensor: %w", err)
-	}
-	defer condScaleTensor.Destroy()
-
-	lmMainInputs := []ort.Value{textEmbedsTensor, audioEmbedsTensor, condScaleTensor}
-	lmMainOutputs := make([]ort.Value, 1)
-
-	if err := p.lmMain.Run(lmMainInputs, lmMainOutputs); err != nil {
 		return nil, fmt.Errorf("failed to run lm_main: %w", err)
 	}
 
-	if lmMainOutputs[0] == nil {
-		return nil, fmt.Errorf("no output from lm_main")
-	}
-	defer lmMainOutputs[0].Destroy()
-
-	condTensor, ok := lmMainOutputs[0].(*ort.Tensor[float32])
-	if !ok {
-		return nil, fmt.Errorf("unexpected lm_main output type")
-	}
-	condData := condTensor.GetData()
-	condShape := condTensor.GetShape()
-
-	latents, err := p.runODESolver(condData, condShape)
+	condLen := len(conditioning) / hiddenDim
+	latents, err := p.runFlowMatching(conditioning, condLen)
 	if err != nil {
-		return nil, fmt.Errorf("failed to run ODE solver: %w", err)
+		return nil, fmt.Errorf("failed to run flow matching: %w", err)
 	}
 
-	latentsTensor, err := ort.NewTensor(ort.NewShape(1, int64(len(latents)/128), 128), latents)
+	audio, err := p.runDecoder(latents)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create latents tensor: %w", err)
-	}
-	defer latentsTensor.Destroy()
-
-	decoderInputs := []ort.Value{latentsTensor}
-	decoderOutputs := make([]ort.Value, 1)
-
-	if err := p.decoder.Run(decoderInputs, decoderOutputs); err != nil {
 		return nil, fmt.Errorf("failed to run decoder: %w", err)
 	}
 
-	if decoderOutputs[0] == nil {
-		return nil, fmt.Errorf("no output from decoder")
-	}
-	defer decoderOutputs[0].Destroy()
-
-	audioTensor, ok := decoderOutputs[0].(*ort.Tensor[float32])
-	if !ok {
-		return nil, fmt.Errorf("unexpected decoder output type")
-	}
-
-	return audioTensor.GetData(), nil
+	return audio, nil
 }
 
-func (p *Pipeline) runODESolver(conditioning []float32, condShape []int64) ([]float32, error) {
-	numSteps := 32
-	dt := 1.0 / float32(numSteps)
+type lmMainState struct {
+	kvCache  []float32
+	emptyBuf []float32
+	posIndex []int64
+}
 
-	latentDim := 128
-	seqLen := int(condShape[1])
-	latents := make([]float32, seqLen*latentDim)
+func newLMMainStates() []lmMainState {
+	states := make([]lmMainState, 6)
+	for i := range states {
+		states[i] = lmMainState{
+			kvCache:  make([]float32, 2*1*1000*16*64),
+			emptyBuf: []float32{},
+			posIndex: []int64{0},
+		}
+	}
+	return states
+}
+
+func (p *Pipeline) runLMMain(textEmbeds []float32, seqLen int64) ([]float32, error) {
+	states := newLMMainStates()
+	var allConditioning []float32
+
+	maxSteps := seqLen * 2
+	if maxSteps > 500 {
+		maxSteps = 500
+	}
+
+	for step := int64(0); step < maxSteps; step++ {
+		seqData := make([]float32, 1*seqFeatureDim)
+		seqTensor, err := ort.NewTensor(ort.NewShape(1, 1, seqFeatureDim), seqData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create sequence tensor: %w", err)
+		}
+
+		textEmbedsTensor, err := ort.NewTensor(ort.NewShape(1, seqLen, hiddenDim), textEmbeds)
+		if err != nil {
+			seqTensor.Destroy()
+			return nil, fmt.Errorf("failed to create text_embeddings tensor: %w", err)
+		}
+
+		inputs := []ort.Value{seqTensor, textEmbedsTensor}
+
+		for i := 0; i < 6; i++ {
+			kvTensor, err := ort.NewTensor(ort.NewShape(2, 1, 1000, 16, 64), states[i].kvCache)
+			if err != nil {
+				destroyAll(inputs)
+				return nil, fmt.Errorf("failed to create state_%d tensor: %w", i*3, err)
+			}
+			inputs = append(inputs, kvTensor)
+
+			emptyTensor, err := ort.NewTensor(ort.NewShape(0), []float32{})
+			if err != nil {
+				destroyAll(inputs)
+				return nil, fmt.Errorf("failed to create state_%d tensor: %w", i*3+1, err)
+			}
+			inputs = append(inputs, emptyTensor)
+
+			posData := []int64{step}
+			posTensor, err := ort.NewTensor(ort.NewShape(1), posData)
+			if err != nil {
+				destroyAll(inputs)
+				return nil, fmt.Errorf("failed to create state_%d tensor: %w", i*3+2, err)
+			}
+			inputs = append(inputs, posTensor)
+		}
+
+		outputs := make([]ort.Value, 2+lmMainStateCount)
+		if err := p.lmMain.Run(inputs, outputs); err != nil {
+			destroyAll(inputs)
+			return nil, fmt.Errorf("failed to run lm_main at step %d: %w", step, err)
+		}
+
+		destroyAll(inputs)
+
+		if outputs[0] == nil {
+			destroyAll(outputs)
+			return nil, fmt.Errorf("no conditioning output at step %d", step)
+		}
+
+		condTensor, ok := outputs[0].(*ort.Tensor[float32])
+		if !ok {
+			destroyAll(outputs)
+			return nil, fmt.Errorf("unexpected conditioning output type")
+		}
+		allConditioning = append(allConditioning, condTensor.GetData()...)
+
+		if outputs[1] != nil {
+			if eosTensor, ok := outputs[1].(*ort.Tensor[float32]); ok {
+				eosData := eosTensor.GetData()
+				if len(eosData) > 0 && eosData[0] > 0.5 {
+					destroyAll(outputs)
+					break
+				}
+			}
+		}
+
+		for i := 0; i < 6; i++ {
+			baseIdx := 2 + i*3
+			if outputs[baseIdx] != nil {
+				if kvTensor, ok := outputs[baseIdx].(*ort.Tensor[float32]); ok {
+					states[i].kvCache = append([]float32(nil), kvTensor.GetData()...)
+				}
+			}
+		}
+
+		destroyAll(outputs)
+	}
+
+	return allConditioning, nil
+}
+
+func (p *Pipeline) runFlowMatching(conditioning []float32, condLen int) ([]float32, error) {
+	dt := 1.0 / float32(numFlowSteps)
+
+	latents := make([]float32, condLen*seqFeatureDim)
 	for i := range latents {
 		latents[i] = float32(randNormal())
 	}
 
-	for step := 0; step < numSteps; step++ {
-		t := float32(step) / float32(numSteps)
+	for step := 0; step < numFlowSteps; step++ {
+		t := float32(step) / float32(numFlowSteps)
 
-		condTensor, err := ort.NewTensor(condShape, conditioning)
+		cTensor, err := ort.NewTensor(ort.NewShape(int64(condLen), hiddenDim), conditioning)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create conditioning tensor: %w", err)
+			return nil, fmt.Errorf("failed to create c tensor: %w", err)
 		}
 
-		latentsTensor, err := ort.NewTensor(ort.NewShape(1, int64(seqLen), int64(latentDim)), latents)
+		sData := make([]float32, condLen)
+		for i := range sData {
+			sData[i] = 1.0
+		}
+		sTensor, err := ort.NewTensor(ort.NewShape(int64(condLen), 1), sData)
 		if err != nil {
-			condTensor.Destroy()
-			return nil, fmt.Errorf("failed to create latents tensor: %w", err)
+			cTensor.Destroy()
+			return nil, fmt.Errorf("failed to create s tensor: %w", err)
 		}
 
-		timestepTensor, err := ort.NewTensor(ort.NewShape(1), []float32{t})
+		tData := make([]float32, condLen)
+		for i := range tData {
+			tData[i] = t
+		}
+		tTensor, err := ort.NewTensor(ort.NewShape(int64(condLen), 1), tData)
 		if err != nil {
-			condTensor.Destroy()
-			latentsTensor.Destroy()
-			return nil, fmt.Errorf("failed to create timestep tensor: %w", err)
+			cTensor.Destroy()
+			sTensor.Destroy()
+			return nil, fmt.Errorf("failed to create t tensor: %w", err)
 		}
 
-		inputs := []ort.Value{condTensor, latentsTensor, timestepTensor}
+		xTensor, err := ort.NewTensor(ort.NewShape(int64(condLen), seqFeatureDim), latents)
+		if err != nil {
+			cTensor.Destroy()
+			sTensor.Destroy()
+			tTensor.Destroy()
+			return nil, fmt.Errorf("failed to create x tensor: %w", err)
+		}
+
+		inputs := []ort.Value{cTensor, sTensor, tTensor, xTensor}
 		outputs := make([]ort.Value, 1)
 
 		if err := p.lmFlow.Run(inputs, outputs); err != nil {
-			condTensor.Destroy()
-			latentsTensor.Destroy()
-			timestepTensor.Destroy()
+			destroyAll(inputs)
 			return nil, fmt.Errorf("failed to run lm_flow at step %d: %w", step, err)
 		}
 
-		condTensor.Destroy()
-		latentsTensor.Destroy()
-		timestepTensor.Destroy()
+		destroyAll(inputs)
 
 		if outputs[0] == nil {
 			return nil, fmt.Errorf("no output from lm_flow at step %d", step)
 		}
 
-		velTensor, ok := outputs[0].(*ort.Tensor[float32])
+		flowTensor, ok := outputs[0].(*ort.Tensor[float32])
 		if !ok {
 			outputs[0].Destroy()
 			return nil, fmt.Errorf("unexpected lm_flow output type")
 		}
 
-		velocity := velTensor.GetData()
+		flowDir := flowTensor.GetData()
 		for i := range latents {
-			latents[i] += velocity[i] * dt
+			if i < len(flowDir) {
+				latents[i] += flowDir[i] * dt
+			}
 		}
 		outputs[0].Destroy()
 	}
@@ -325,10 +423,133 @@ func (p *Pipeline) runODESolver(conditioning []float32, condShape []int64) ([]fl
 	return latents, nil
 }
 
+func (p *Pipeline) runDecoder(latents []float32) ([]float32, error) {
+	latentLen := len(latents) / seqFeatureDim
+
+	latentTensor, err := ort.NewTensor(ort.NewShape(1, int64(latentLen), seqFeatureDim), latents)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create latent tensor: %w", err)
+	}
+
+	inputs := []ort.Value{latentTensor}
+
+	stateShapes := []struct {
+		shape []int64
+		dtype string
+	}{
+		{[]int64{1}, "bool"},
+		{[]int64{1, 512, 6}, "float"},
+		{[]int64{1}, "bool"},
+		{[]int64{1, 64, 2}, "float"},
+		{[]int64{1, 256, 6}, "float"},
+		{[]int64{1}, "bool"},
+		{[]int64{1, 256, 2}, "float"},
+		{[]int64{1}, "bool"},
+		{[]int64{1, 128, 0}, "float"},
+		{[]int64{1, 128, 5}, "float"},
+		{[]int64{1}, "bool"},
+		{[]int64{1, 128, 2}, "float"},
+		{[]int64{1}, "bool"},
+		{[]int64{1, 64, 0}, "float"},
+		{[]int64{1, 64, 4}, "float"},
+		{[]int64{1}, "bool"},
+		{[]int64{1, 64, 2}, "float"},
+		{[]int64{1}, "bool"},
+		{[]int64{1, 32, 0}, "float"},
+		{[]int64{2, 1, 8, 1000, 64}, "float"},
+		{[]int64{1}, "int64"},
+		{[]int64{1}, "int64"},
+		{[]int64{2, 1, 8, 1000, 64}, "float"},
+		{[]int64{1}, "int64"},
+		{[]int64{1}, "int64"},
+		{[]int64{1}, "bool"},
+		{[]int64{1, 512, 16}, "float"},
+		{[]int64{1}, "bool"},
+		{[]int64{1, 1, 6}, "float"},
+		{[]int64{1}, "bool"},
+		{[]int64{1, 64, 2}, "float"},
+		{[]int64{1}, "bool"},
+		{[]int64{1, 32, 0}, "float"},
+		{[]int64{1}, "bool"},
+		{[]int64{1, 512, 2}, "float"},
+		{[]int64{1}, "bool"},
+		{[]int64{1, 64, 4}, "float"},
+		{[]int64{1}, "bool"},
+		{[]int64{1, 128, 2}, "float"},
+		{[]int64{1}, "bool"},
+		{[]int64{1, 64, 0}, "float"},
+		{[]int64{1}, "bool"},
+		{[]int64{1, 128, 5}, "float"},
+		{[]int64{1}, "bool"},
+		{[]int64{1, 256, 2}, "float"},
+		{[]int64{1}, "bool"},
+		{[]int64{1, 128, 0}, "float"},
+		{[]int64{1}, "bool"},
+		{[]int64{1, 256, 6}, "float"},
+		{[]int64{2, 1, 8, 1000, 64}, "float"},
+		{[]int64{1}, "int64"},
+		{[]int64{1}, "int64"},
+		{[]int64{2, 1, 8, 1000, 64}, "float"},
+		{[]int64{1}, "int64"},
+		{[]int64{1}, "int64"},
+		{[]int64{1, 512, 16}, "float"},
+	}
+
+	for i, ss := range stateShapes {
+		size := int64(1)
+		for _, d := range ss.shape {
+			size *= d
+		}
+
+		var tensor ort.Value
+		switch ss.dtype {
+		case "bool":
+			data := make([]bool, size)
+			tensor, err = ort.NewTensor(ort.NewShape(ss.shape...), data)
+		case "float":
+			data := make([]float32, size)
+			tensor, err = ort.NewTensor(ort.NewShape(ss.shape...), data)
+		case "int64":
+			data := make([]int64, size)
+			tensor, err = ort.NewTensor(ort.NewShape(ss.shape...), data)
+		}
+
+		if err != nil {
+			destroyAll(inputs)
+			return nil, fmt.Errorf("failed to create decoder state_%d tensor: %w", i, err)
+		}
+		inputs = append(inputs, tensor)
+	}
+
+	outputs := make([]ort.Value, 1+decoderStateCount)
+	if err := p.decoder.Run(inputs, outputs); err != nil {
+		destroyAll(inputs)
+		return nil, fmt.Errorf("failed to run decoder: %w", err)
+	}
+
+	destroyAll(inputs)
+
+	if outputs[0] == nil {
+		destroyAll(outputs)
+		return nil, fmt.Errorf("no audio output from decoder")
+	}
+
+	audioTensor, ok := outputs[0].(*ort.Tensor[float32])
+	if !ok {
+		destroyAll(outputs)
+		return nil, fmt.Errorf("unexpected audio output type")
+	}
+
+	audioData := append([]float32(nil), audioTensor.GetData()...)
+	destroyAll(outputs)
+
+	return audioData, nil
+}
+
 func (p *Pipeline) GetTextEmbeddings(inputIDs []int64) ([]float32, error) {
 	inputTensor, err := ort.NewTensor(ort.NewShape(1, int64(len(inputIDs))), inputIDs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create input_ids tensor: %w", err)
+		return nil, fmt.Errorf("failed to create token_ids tensor: %w", err)
 	}
 	defer inputTensor.Destroy()
 
@@ -388,6 +609,14 @@ func (p *Pipeline) Close() error {
 	}
 
 	return lastErr
+}
+
+func destroyAll(values []ort.Value) {
+	for _, v := range values {
+		if v != nil {
+			v.Destroy()
+		}
+	}
 }
 
 var rngState uint64 = 42

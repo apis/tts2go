@@ -55,27 +55,23 @@ func NewEngine(cfg engine.EngineConfig) (engine.Engine, error) {
 }
 
 func (e *Engine) Generate(text, voice string, speed float32) (*audio.Audio, error) {
-	var audioEmbeds []float32
-	var audioLen int64 = 1
+	var speakerEmbeds []float32
 
 	if voice != "" {
 		if embeds, ok := e.refEmbeds[voice]; ok {
-			audioEmbeds = embeds
-			audioLen = int64(len(embeds) / 512)
+			speakerEmbeds = embeds
 		}
 	}
 
-	if audioEmbeds == nil && e.defaultRef != nil {
-		audioEmbeds = e.defaultRef
-		audioLen = int64(len(audioEmbeds) / 512)
+	if speakerEmbeds == nil && e.defaultRef != nil {
+		speakerEmbeds = e.defaultRef
 	}
 
-	if audioEmbeds == nil {
-		audioEmbeds = make([]float32, 512)
-		for i := range audioEmbeds {
-			audioEmbeds[i] = float32(randNormal()) * 0.1
+	if speakerEmbeds == nil {
+		speakerEmbeds = make([]float32, seqFeatureDim)
+		for i := range speakerEmbeds {
+			speakerEmbeds[i] = float32(randNormal()) * 0.1
 		}
-		audioLen = 1
 	}
 
 	tokens := e.tokenizer.Encode(text)
@@ -88,8 +84,7 @@ func (e *Engine) Generate(text, voice string, speed float32) (*audio.Audio, erro
 		return nil, fmt.Errorf("failed to get text embeddings: %w", err)
 	}
 
-	textLen := int64(len(tokens))
-	audioData, err := e.pipeline.Generate(textEmbeds, audioEmbeds, textLen, audioLen, speed)
+	audioData, err := e.pipeline.Generate(textEmbeds, speakerEmbeds, speed)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate audio: %w", err)
 	}
@@ -102,7 +97,7 @@ func (e *Engine) GenerateWithReference(text string, refAudio *audio.Audio, speed
 		return e.Generate(text, "", speed)
 	}
 
-	audioEmbeds, err := e.pipeline.EncodeReference(refAudio.Samples)
+	speakerEmbeds, err := e.pipeline.EncodeReference(refAudio.Samples)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode reference audio: %w", err)
 	}
@@ -117,13 +112,7 @@ func (e *Engine) GenerateWithReference(text string, refAudio *audio.Audio, speed
 		return nil, fmt.Errorf("failed to get text embeddings: %w", err)
 	}
 
-	textLen := int64(len(tokens))
-	audioLen := int64(len(audioEmbeds) / 512)
-	if audioLen < 1 {
-		audioLen = 1
-	}
-
-	audioData, err := e.pipeline.Generate(textEmbeds, audioEmbeds, textLen, audioLen, speed)
+	audioData, err := e.pipeline.Generate(textEmbeds, speakerEmbeds, speed)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate audio: %w", err)
 	}
