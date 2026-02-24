@@ -27,15 +27,22 @@ func NewTokenizer(tokensPath string) (*Tokenizer, error) {
 	}
 
 	scanner := bufio.NewScanner(f)
-	var id int64
 	for scanner.Scan() {
-		token := scanner.Text()
-		if token == "" {
+		line := scanner.Text()
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, " ", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		token := parts[0]
+		var id int64
+		if _, err := fmt.Sscanf(parts[1], "%d", &id); err != nil {
 			continue
 		}
 		t.tokenToID[token] = id
 		t.idToToken[id] = token
-		id++
 	}
 
 	if err := scanner.Err(); err != nil {

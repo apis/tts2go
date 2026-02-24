@@ -125,8 +125,8 @@ func newEngine(cfg engine.EngineConfig, version string, languages []string, numS
 		return nil, fmt.Errorf("failed to load voices: %w", err)
 	}
 
-	inputNames := []string{"input_ids", "style", "speed"}
-	outputNames := []string{"waveform"}
+	inputNames := []string{"tokens", "style", "speed"}
+	outputNames := []string{"audio"}
 
 	session, err := ort.NewDynamicAdvancedSession(
 		modelPath,
