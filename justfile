@@ -176,6 +176,7 @@ fetch-kokoro-1_0:
     curl -L -o models/model.onnx "{{hf_kokoro_1_0}}/resolve/main/model.onnx"
     curl -L -o models/tokens.txt "{{hf_kokoro_1_0}}/resolve/main/tokens.txt"
     curl -L -o models/voices.bin "{{hf_kokoro_1_0}}/resolve/main/voices.bin"
+    echo "1.0" > models/.version
     echo "Done: models/"
     ls -lh models/
 
@@ -186,6 +187,7 @@ fetch-kokoro-1_0:
     @Invoke-WebRequest -Uri "{{hf_kokoro_1_0}}/resolve/main/model.onnx" -OutFile models\model.onnx
     @Invoke-WebRequest -Uri "{{hf_kokoro_1_0}}/resolve/main/tokens.txt" -OutFile models\tokens.txt
     @Invoke-WebRequest -Uri "{{hf_kokoro_1_0}}/resolve/main/voices.bin" -OutFile models\voices.bin
+    @"1.0" | Out-File -FilePath models\.version -Encoding ascii
     @Get-ChildItem models\
 
 # Fetch Kokoro 1.1 multi-lang model (Chinese optimized)
@@ -199,6 +201,7 @@ fetch-kokoro-1_1:
     curl -L -o models/model.onnx "{{hf_kokoro_1_1}}/resolve/main/model.onnx"
     curl -L -o models/tokens.txt "{{hf_kokoro_1_1}}/resolve/main/tokens.txt"
     curl -L -o models/voices.bin "{{hf_kokoro_1_1}}/resolve/main/voices.bin"
+    echo "1.1" > models/.version
     echo "Done: models/"
     ls -lh models/
 
@@ -209,6 +212,7 @@ fetch-kokoro-1_1:
     @Invoke-WebRequest -Uri "{{hf_kokoro_1_1}}/resolve/main/model.onnx" -OutFile models\model.onnx
     @Invoke-WebRequest -Uri "{{hf_kokoro_1_1}}/resolve/main/tokens.txt" -OutFile models\tokens.txt
     @Invoke-WebRequest -Uri "{{hf_kokoro_1_1}}/resolve/main/voices.bin" -OutFile models\voices.bin
+    @"1.1" | Out-File -FilePath models\.version -Encoding ascii
     @Get-ChildItem models\
 
 # Fetch PocketTTS model files (voice cloning)

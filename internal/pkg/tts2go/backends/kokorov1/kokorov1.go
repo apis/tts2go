@@ -79,11 +79,11 @@ func getOnnxRuntimeLibPath() string {
 }
 
 func newEngineV10(cfg engine.EngineConfig) (engine.Engine, error) {
-	return newEngine(cfg, "v1.0", []string{"en", "zh"}, 53, 512, 256)
+	return newEngine(cfg, "v1.0", []string{"en", "zh"}, 53, 510, 256)
 }
 
 func newEngineV11(cfg engine.EngineConfig) (engine.Engine, error) {
-	return newEngine(cfg, "v1.1", []string{"zh", "en"}, 103, 512, 256)
+	return newEngine(cfg, "v1.1", []string{"zh", "en"}, 103, 510, 256)
 }
 
 func newEngine(cfg engine.EngineConfig, version string, languages []string, numSpeakers, styleDim0, styleDim1 int) (engine.Engine, error) {

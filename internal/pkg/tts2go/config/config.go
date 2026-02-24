@@ -48,6 +48,12 @@ func detectBackend(modelDir string) string {
 	}
 	if _, err := os.Stat(filepath.Join(modelDir, "tokens.txt")); err == nil {
 		if _, err := os.Stat(filepath.Join(modelDir, "voices.bin")); err == nil {
+			if ver, err := os.ReadFile(filepath.Join(modelDir, ".version")); err == nil {
+				v := strings.TrimSpace(string(ver))
+				if v == "1.1" {
+					return "kokoro-1.1"
+				}
+			}
 			return "kokoro-1.0"
 		}
 	}
